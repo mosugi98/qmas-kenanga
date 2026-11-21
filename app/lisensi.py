@@ -106,6 +106,84 @@ def terbitkan(private_pem: str, toko: str, perangkat: str, sampai: str | None, t
     return f"{PREFIX}.{_b64(raw)}.{_b64(key.sign(raw))}"
 
 
+# ---------- reset kata sandi (hanya penerbit) ----------
+# Pelanggan membuka /lupa-sandi dan mendapat kode tantangan. Hanya penerbit (pemegang kunci privat) yang bisa
+# menandatangani token untuk tantangan + kode perangkat itu. Token sekali pakai karena tantangan diganti setelah dipakai.
+PREFIX_RESET = "QMRST1"
+_ALFABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # tanpa huruf/angka yang mudah tertukar (I, O, 0, 1)
+RESET_HARI = 2                                  # token berlaku sampai akhir hari ke-2 sejak diterbitkan
+TANTANGAN_HARI = 7                              # tantangan lama diganti otomatis
+
+
+def _norm_tantangan(v: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", (v or "").upper())
+
+
+def terbitkan_reset(private_pem: str, perangkat: str, tantangan: str, hari_ini: date | None = None) -> str:
+    kode = _norm_kode(perangkat)
+    if not re.fullmatch(r"QM[0-9A-F]{16}", kode):
+        raise LisensiError("Kode perangkat tidak valid (contoh: QM-1A2B-3C4D-5E6F-7A8B)")
+    t = _norm_tantangan(tantangan)
+    if len(t) != 8:
+        raise LisensiError("Kode tantangan harus 8 karakter")
+    payload = {
+        "p": PRODUK, "r": "reset", "dev": "QM-" + "-".join(kode[2 + i:6 + i] for i in range(0, 16, 4)), "t": t,
+        "exp": ((hari_ini or date.today()) + timedelta(days=RESET_HARI)).isoformat(),
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    key = serialization.load_pem_private_key(private_pem.encode(), password=None)
+    return f"{PREFIX_RESET}.{_b64(raw)}.{_b64(key.sign(raw))}"
+
+
+def periksa_reset(token: str, perangkat: str, tantangan: str, hari_ini: date, pubkey_b64: str | None = None) -> None:
+    """Melempar LisensiError bila token bukan buatan penerbit, bukan untuk komputer/tantangan ini, atau kedaluwarsa."""
+    bagian = "".join((token or "").split()).split(".")
+    if len(bagian) != 3 or bagian[0] != PREFIX_RESET:
+        raise LisensiError("Token reset tidak dikenal")
+    try:
+        raw, sig = _unb64(bagian[1]), _unb64(bagian[2])
+        Ed25519PublicKey.from_public_bytes(_unb64(pubkey_b64 or PUBLIC_KEY_B64)).verify(sig, raw)
+        d = json.loads(raw)
+    except InvalidSignature:
+        raise LisensiError("Token reset tidak sah") from None
+    except Exception:
+        raise LisensiError("Token reset rusak atau terpotong, salin ulang seluruhnya") from None
+    if d.get("p") != PRODUK or d.get("r") != "reset":
+        raise LisensiError("Token reset tidak sah")
+    if _norm_kode(d.get("dev", "")) != _norm_kode(perangkat):
+        raise LisensiError("Token ini untuk komputer lain")
+    if d.get("t") != _norm_tantangan(tantangan):
+        raise LisensiError("Token ini untuk kode tantangan yang berbeda atau sudah dipakai")
+    try:
+        if hari_ini > date.fromisoformat(d.get("exp", "")):
+            raise LisensiError("Token reset sudah kedaluwarsa, minta token baru")
+    except ValueError:
+        raise LisensiError("Token reset rusak") from None
+
+
+def tantangan_reset(settings, hari_ini: date | None = None) -> str:
+    """Kode tantangan aktif; dibuat bila belum ada atau sudah lama. Dimuat ulang tidak mengganti kodenya."""
+    import secrets
+    hari_ini = hari_ini or date.today()
+    f = settings.data_dir / "reset-tantangan.txt"
+    try:
+        kode, tgl = f.read_text(encoding="utf-8").split()
+        if len(kode) == 8 and (hari_ini - date.fromisoformat(tgl)).days <= TANTANGAN_HARI:
+            return kode
+    except (OSError, ValueError):
+        pass
+    kode = "".join(secrets.choice(_ALFABET) for _ in range(8))
+    f.write_text(f"{kode} {hari_ini.isoformat()}\n", encoding="utf-8")
+    return kode
+
+
+def hapus_tantangan(settings) -> None:
+    try:
+        (settings.data_dir / "reset-tantangan.txt").unlink()
+    except OSError:
+        pass
+
+
 # ---------- pemeriksaan ----------
 @dataclass(frozen=True)
 class Status:

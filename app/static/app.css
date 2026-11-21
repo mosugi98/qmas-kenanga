@@ -336,3 +336,8 @@ summary{cursor:pointer;padding:10px 0}
 .opn-log li{padding:6px 0;border-bottom:1px solid #eee9dc;font-size:.92rem;display:flex;gap:8px;justify-content:space-between}
 .hilang-box{border:2px solid #b3382c;border-radius:14px;padding:14px 16px;background:#fbeceb;margin:0 0 16px}
 .ok-box{border:2px solid #2f7d4f;border-radius:14px;padding:14px 16px;background:#eef8f1;margin:0 0 16px}
+
+/* logo Q-mas */
+img.logo{width:42px;height:auto;flex:0 0 42px;border-radius:0;background:none;box-shadow:none}
+.guest-brand{flex-direction:column;align-items:flex-start;gap:6px}
+.guest-brand .logo-full{width:min(240px,70%);height:auto;display:block}

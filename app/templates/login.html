@@ -2,11 +2,12 @@
 {% block title %}Masuk{% endblock %}
 {% block content %}
 <h1>Masuk</h1>
+{% if info %}<p class="toast">{{ info }}</p>{% endif %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <form method="post" class="card">
   <p><label>Nama pengguna<br><input name="username" required autofocus></label></p>
   <p><label>Kata sandi<br><input name="password" type="password" required></label></p>
   <p><button>Masuk</button></p>
 </form>
-<p class="muted"><a href="/sertifikat">Kamera HP tidak aktif?</a></p>
+<p class="muted"><a href="/lupa-sandi">Lupa kata sandi?</a> · <a href="/sertifikat">Kamera HP tidak aktif?</a></p>
 {% endblock %}

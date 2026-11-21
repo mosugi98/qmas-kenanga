@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Lupa kata sandi{% endblock %}
+{% block content %}
+<h1>Lupa kata sandi</h1>
+<section class="card">
+  <p>Reset kata sandi hanya bisa dilakukan oleh penyedia aplikasi. Kirim dua kode ini kepadanya, lalu tempel token balasannya di bawah.</p>
+  <p class="muted">Kode Perangkat</p><p><code class="kode-besar">{{ perangkat }}</code></p>
+  <p class="muted">Kode tantangan</p><p><code class="kode-besar" id="tantangan">{{ tantangan }}</code></p>
+</section>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" class="card">
+  <p><label>Nama pengguna yang di-reset<br><input name="username" value="{{ username }}" required autocomplete="off"></label></p>
+  <p><label>Token reset dari penyedia<br><textarea name="token" rows="3" required spellcheck="false" autocomplete="off" style="width:100%;font-family:monospace" placeholder="QMRST1.…"></textarea></label></p>
+  <p><label>Kata sandi baru<br><input name="sandi" type="password" required minlength="6" autocomplete="new-password"></label></p>
+  <p><button>Ganti kata sandi</button></p>
+</form>
+<p class="muted"><a href="/login">Kembali ke halaman masuk</a></p>
+{% endblock %}

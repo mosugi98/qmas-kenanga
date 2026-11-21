@@ -51,12 +51,26 @@ buat-paket.bat --toko "Nama Toko"
 
 Hasilnya `dist\Q-mas-SiapJalan-<tanggal>.zip` berisi Python portable, semua paket, dan aplikasi. Di komputer tujuan: ekstrak, klik `jalankan.bat`, dan untuk mode server klik kanan `pasang-otomatis.bat` lalu Run as administrator (firewall dan jalan otomatis saat komputer menyala).
 
+## Rilis dan pemasangan dari GitHub
+
+Aplikasi ini untuk jaringan toko (bukan layanan cloud), jadi "deploy" berarti membuat paket yang bisa dipasang di komputer toko.
+GitHub Actions melakukannya otomatis:
+
+1. Sekali saja: di GitHub buka **Settings > Actions > General > Workflow permissions**, pilih **Read and write permissions**.
+2. Rilis baru: `git tag v2.1 && git push origin v2.1`.
+3. Workflow **Rilis** menjalankan tes, membangun paket siap-jalan Windows (Python portable + dependensi) dan ZIP update, lalu menaruhnya di halaman **Releases**.
+4. Komputer toko baru: unduh `Q-mas-SiapJalan-*.zip`, ekstrak, klik dua kali `jalankan.bat`. Toko yang sudah memakai: unduh `Q-mas-update-*.zip` dan timpa ke folder Q-mas (folder `data` aman).
+
+Workflow **Tes** berjalan di setiap push. Kunci privat lisensi tidak pernah masuk repo maupun workflow; kunci lisensi pelanggan tetap diterbitkan manual lewat `tools/generator_lisensi.bat`, dan reset kata sandi lewat `tools/reset-password.bat`.
+
 ## Lisensi
 
 - Pelanggan membuka halaman **Lisensi** dan mengirim **Kode Perangkat** (`QM-XXXX-XXXX-XXXX-XXXX`).
 - Penerbit membuat kunci dengan `tools/generator_lisensi.bat` (atau `python tools/penerbit.py terbit ...`), lalu pelanggan menempelnya dan menekan **Aktifkan**.
 - Kunci ditandatangani Ed25519. Kunci publik tertanam di `app/lisensi.py`; **kunci privat tidak pernah masuk repo atau paket pelanggan** (`*.pem` diabaikan git).
 - Peringatan 14 hari sebelum habis, masa tenggang 7 hari, lalu aplikasi terkunci. Data tetap aman dan pemilik masih bisa mengunduh backup. Pengunduran jam komputer terdeteksi.
+- **Langganan**: masa berlaku lisensi berfungsi sebagai langganan (30 hari, 90 hari, 1 tahun). Saat pelanggan membayar, penerbit menjalankan `generator_lisensi.bat` dan mengisi tanggal habis lisensi lama; perpanjangan menyambung dari tanggal itu sehingga sisa hari tidak hangus. Pelanggan menempel kunci baru di halaman Lisensi tanpa restart.
+- **Reset kata sandi (hanya penerbit)**: pelanggan membuka **Masuk > Lupa kata sandi** dan mengirim Kode Perangkat + Kode Tantangan. Penerbit menjalankan `tools/reset-password.bat` dan mengirim balik token. Token hanya sah untuk komputer dan tantangan itu, sekali pakai, berlaku 2 hari.
 - Pindah komputer atau instal ulang Windows membutuhkan kunci baru.
 
 > Karena kode berupa Python, lisensi ini mencegah penyalinan biasa, bukan pembobolan oleh ahli. Untuk perlindungan lebih kuat, build `.exe` dengan `build.bat` (PyInstaller).
@@ -71,8 +85,9 @@ app/
   services/          logika bisnis (items, transactions, bulk, stocktake, export, backup, ...)
   templates/         Jinja2
   static/            CSS, font, pustaka pemindai
-tests/               pytest (221 tes)
-tools/               penerbit.py, generator_lisensi.bat, buat_paket.py (tidak ikut paket pelanggan)
+tests/               pytest
+tools/               penerbit.py, generator_lisensi.bat, reset-password.bat, buat_paket.py, buat_update.py (tidak ikut paket pelanggan)
+.github/workflows/   tes.yml (CI), rilis.yml (bangun paket Windows saat tag v*)
 docs/                QA-manual.md (daftar uji manual sebelum rilis), spesifikasi dan rencana
 run.py               titik masuk
 ```

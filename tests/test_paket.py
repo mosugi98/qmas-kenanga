@@ -62,7 +62,7 @@ def test_generator_interaktif(tmp_path):
     pem = tmp_path / "lisensi-private.pem"
     subprocess.run([sys.executable, str(pen), "keygen", "--out", str(pem)], check=True, capture_output=True)
     # kode salah dulu, lalu benar; masa berlaku "1 tahun" (pilih 3); tidak membuat lagi
-    masukan = "Toko =Maju\nsalah\nQM-1A2B-3C4D-5E6F-7A8B\n3\nt\n"
+    masukan = "Toko =Maju\nsalah\nQM-1A2B-3C4D-5E6F-7A8B\n\n3\nt\n"   # baris kosong = bukan perpanjangan
     r = subprocess.run([sys.executable, str(pen), "interaktif", "--kunci", str(pem)],
                        input=masukan, capture_output=True, text=True, cwd=tmp_path)
     assert r.returncode == 0, r.stderr
@@ -71,6 +71,66 @@ def test_generator_interaktif(tmp_path):
     # riwayat tercatat dan nama berawalan '=' dinetralkan
     from_csv = (tmp_path / "riwayat-lisensi.csv").read_text(encoding="utf-8-sig")
     assert "QM-1A2B-3C4D-5E6F-7A8B" in from_csv and "'=Maju" not in from_csv and "Toko =Maju" in from_csv
+
+
+def test_generator_perpanjangan_menyambung_dari_tanggal_habis(tmp_path):
+    from datetime import date, timedelta
+    from app import lisensi
+    pen = ROOT / "tools" / "penerbit.py"
+    pem = tmp_path / "lisensi-private.pem"
+    subprocess.run([sys.executable, str(pen), "keygen", "--out", str(pem)], check=True, capture_output=True)
+    lama = date.today() + timedelta(days=10)
+    masukan = f"Toko Maju\nQM-1A2B-3C4D-5E6F-7A8B\n{lama.isoformat()}\n1\nt\n"   # 30 hari disambung dari tanggal lama
+    r = subprocess.run([sys.executable, str(pen), "interaktif", "--kunci", str(pem)],
+                       input=masukan, capture_output=True, text=True, cwd=tmp_path)
+    assert r.returncode == 0, r.stderr
+    kunci = (tmp_path / "lisensi-toko-maju.key").read_text().strip()
+    d = lisensi.urai(kunci, pub_dari(pem))
+    assert d["sampai"] == (lama + timedelta(days=30)).isoformat()
+
+
+def pub_dari(pem):
+    from cryptography.hazmat.primitives import serialization
+    from app.lisensi import _b64
+    k = serialization.load_pem_private_key(pem.read_bytes(), password=None)
+    return _b64(k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
+
+
+def test_reset_password_alat_penerbit(tmp_path):
+    from datetime import date
+    from app import lisensi
+    pen = ROOT / "tools" / "penerbit.py"
+    pem = tmp_path / "lisensi-private.pem"
+    subprocess.run([sys.executable, str(pen), "keygen", "--out", str(pem)], check=True, capture_output=True)
+    masukan = "salah\nabcd2345\nQM-1A2B-3C4D-5E6F-7A8B\nabcd2345\nt\n"
+    r = subprocess.run([sys.executable, str(pen), "reset-interaktif", "--kunci", str(pem)],
+                       input=masukan, capture_output=True, text=True, cwd=tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert "Kode perangkat tidak valid" in r.stdout
+    token = next(x for x in r.stdout.split() if x.startswith("QMRST1."))
+    lisensi.periksa_reset(token, "QM-1A2B-3C4D-5E6F-7A8B", "ABCD2345", date.today(), pub_dari(pem))
+    assert "QM-1A2B-3C4D-5E6F-7A8B" in (tmp_path / "riwayat-reset.csv").read_text(encoding="utf-8-sig")
+
+
+def test_reset_password_bat_hanya_di_tools():
+    assert (ROOT / "tools" / "reset-password.bat").exists()
+    assert "reset-interaktif" in (ROOT / "tools" / "reset-password.bat").read_text()
+
+
+def test_zip_update_tanpa_data_dan_kunci(tmp_path):
+    import zipfile
+    sys.path.insert(0, str(ROOT / "tools"))
+    import buat_update
+    z = zipfile.ZipFile(buat_update.buat(tmp_path, "v9"))
+    nama = z.namelist()
+    assert "app/main.py" in nama and "run.py" in nama and "BACA-DULU.txt" in nama
+    assert not any(n.startswith("data/") or n.endswith(".pem") or "__pycache__" in n or n.startswith("tests/") for n in nama)
+
+
+def test_workflow_rilis_ada():
+    isi = (ROOT / ".github" / "workflows" / "rilis.yml").read_text(encoding="utf-8")
+    assert "buat_paket.py" in isi and "windows-latest" in isi and "tags:" in isi
+    assert "pem" not in isi.lower().replace("pembuat", "")   # tidak ada urusan dengan kunci privat
 
 
 def test_generator_tanpa_kunci_privat(tmp_path):

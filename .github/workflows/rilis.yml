@@ -1,0 +1,55 @@
+# Memberi tag (contoh: git tag v2.1 && git push origin v2.1) otomatis menjalankan tes, membangun paket siap-jalan
+# Windows (Python portable + dependensi, tanpa internet di komputer toko) dan ZIP update, lalu menerbitkannya di Releases.
+name: Rilis
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      toko:
+        description: "Nama toko awal pada paket (opsional)"
+        required: false
+        default: "Toko Emas Kenanga"
+
+permissions:
+  contents: write
+
+jobs:
+  tes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  paket:
+    needs: tes
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bangun paket siap-jalan Windows
+        shell: bash
+        run: |
+          TOKO="${{ github.event.inputs.toko }}"
+          python tools/buat_paket.py --toko "${TOKO:-Toko Emas Kenanga}" --out dist
+      - name: Bangun ZIP update
+        shell: bash
+        run: python tools/buat_update.py --versi "${GITHUB_REF_NAME}" --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paket-qmas
+          path: dist/*.zip
+      - name: Terbitkan di Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*.zip

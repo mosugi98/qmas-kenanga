@@ -81,7 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Penjaga lisensi: tanpa lisensi sah, semua halaman diarahkan ke /lisensi
     # (kecuali halaman lisensi, berkas statis, login, backup, dan sertifikat).
-    _BEBAS = ("/lisensi", "/static/", "/login", "/logout", "/backup", "/sertifikat")
+    _BEBAS = ("/lisensi", "/static/", "/login", "/logout", "/lupa-sandi", "/backup", "/sertifikat")
 
     @app.middleware("http")
     async def penjaga_lisensi(request, call_next):

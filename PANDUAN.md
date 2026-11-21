@@ -44,6 +44,9 @@
 - **Scan di HP**: buka menu **Scan**, ketuk kotak kamera, arahkan ke label, lalu **Tambah ke kasir**. Perhiasan muncul sendiri di Kasir PC dalam beberapa detik.
 - **Beranda**: ringkasan penjualan, pembelian, gramasi, stok, dan harga hari ini (nominal hanya untuk pemilik).
 
+## Lupa kata sandi
+- Di halaman Masuk klik **Lupa kata sandi?**. Kirim **Kode Perangkat** dan **Kode Tantangan** yang tampil ke penyedia aplikasi. Tempel token balasannya, isi nama pengguna dan kata sandi baru. Reset hanya bisa dilakukan penyedia aplikasi.
+
 ## Backup
 - Otomatis setiap hari ke `data\backup\` (14 hari terakhir disimpan). Salin zip terbaru ke flashdisk secara berkala.
 - Manual: menu **Pengguna → Unduh backup sekarang**.
