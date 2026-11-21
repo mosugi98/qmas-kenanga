@@ -36,6 +36,9 @@ class LisensiError(ValueError):
 # ---------- kode perangkat ----------
 def machine_id() -> str:
     """ID unik komputer ini yang stabil (tidak berubah saat ganti RAM/disk)."""
+    import os
+    if os.environ.get("QMAS_MACHINE_ID", "").strip():     # hosting/container: ID dipatok agar stabil antar-restart
+        return os.environ["QMAS_MACHINE_ID"].strip()
     try:
         if sys.platform == "win32":
             import winreg

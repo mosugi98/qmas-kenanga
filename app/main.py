@@ -13,6 +13,7 @@ from .config import Settings, load_settings
 from .db import init_db
 from . import lisensi
 from .netguard import is_local
+from .throttle import Throttle
 from .routes import (
     admin_routes, auth_routes, cart_routes, dashboard_routes, export_routes, items_routes, lisensi_routes, opname_routes, prices_routes,
     scan_routes,
@@ -51,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Q-mas")
     app.state.settings = settings
+    app.state.throttle = Throttle()
     app.add_middleware(
         SessionMiddleware,
         secret_key=_secret(settings),
@@ -75,13 +77,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.middleware("http")
     async def lan_only(request, call_next):
         host = request.client.host if request.client else None
-        if not is_local(host):
+        if not settings.online and not is_local(host):
             return PlainTextResponse("Hanya untuk jaringan lokal", status_code=403)
         return await call_next(request)
 
+    @app.middleware("http")
+    async def header_keamanan(request, call_next):
+        resp = await call_next(request)
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        if settings.online:
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return resp
+
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
     # Penjaga lisensi: tanpa lisensi sah, semua halaman diarahkan ke /lisensi
     # (kecuali halaman lisensi, berkas statis, login, backup, dan sertifikat).
-    _BEBAS = ("/lisensi", "/static/", "/login", "/logout", "/lupa-sandi", "/backup", "/sertifikat")
+    _BEBAS = ("/lisensi", "/static/", "/login", "/logout", "/lupa-sandi", "/healthz", "/backup", "/sertifikat")
 
     @app.middleware("http")
     async def penjaga_lisensi(request, call_next):

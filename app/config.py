@@ -22,6 +22,8 @@ class Settings:
     https_only: bool = True
     lisensi_wajib: bool = False       # aplikasi asli (load_settings) selalu True
     lisensi_pubkey: str | None = None  # None = kunci publik bawaan; hanya diganti oleh tes
+    online: bool = False              # True = dihosting di internet (di belakang HTTPS proxy), bukan hanya LAN toko
+    setup_token: str = ""             # mode online: token rahasia untuk membuat akun pemilik pertama
 
     @property
     def db_path(self) -> Path:
@@ -71,4 +73,10 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    return Settings(data_dir=Path(os.environ.get("TOKOEMAS_DATA") or _default_data_dir()), lisensi_wajib=True)
+    data = Path(os.environ.get("TOKOEMAS_DATA") or _default_data_dir())
+    online = os.environ.get("TOKOEMAS_ONLINE", "").strip().lower() in ("1", "true", "ya", "yes")
+    # Lisensi terikat-komputer hanya untuk pemasangan di PC toko; instans hosting dikelola penyedia sendiri.
+    return Settings(
+        data_dir=data, lisensi_wajib=not online, online=online,
+        setup_token=os.environ.get("TOKOEMAS_SETUP_TOKEN", "").strip(),
+    )

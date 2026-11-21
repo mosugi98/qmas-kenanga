@@ -12,3 +12,4 @@ TokoEmas.spec
 *.pem
 lisensi-*.key
 dist/
+.env

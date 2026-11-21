@@ -5,6 +5,7 @@
 <p>Buat akun pemilik pertama.</p>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <form method="post" class="card">
+  {% if butuh_token %}<p><label>Token pengaturan (dari pengelola server)<br><input name="token" type="password" required autocomplete="off"></label></p>{% endif %}
   <p><label>Nama pengguna<br><input name="username" required autofocus></label></p>
   <p><label>Kata sandi (minimal 6 karakter)<br><input name="password" type="password" required></label></p>
   <p><button>Buat akun</button></p>

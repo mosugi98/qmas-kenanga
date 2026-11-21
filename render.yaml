@@ -1,0 +1,18 @@
+# Render.com: Dashboard > New > Blueprint > pilih repo ini. Disk persisten butuh paket berbayar (Starter).
+services:
+  - type: web
+    name: qmas-kenanga
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: TOKOEMAS_ONLINE
+        value: "1"
+      - key: TOKOEMAS_DATA
+        value: /data
+      - key: TOKOEMAS_SETUP_TOKEN
+        generateValue: true      # lihat nilainya di Environment, dipakai sekali di /setup
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

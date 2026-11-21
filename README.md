@@ -1,6 +1,6 @@
 # Q-mas
 
-Aplikasi toko emas berbasis web untuk jaringan lokal (WiFi/LAN toko). Setiap perhiasan punya kode unik dan label QR/barcode, sehingga stok, kasir, dan laporan tertib tanpa catatan kertas. Data tersimpan di komputer toko sendiri, tidak keluar ke internet.
+Aplikasi toko emas berbasis web. Setiap perhiasan punya kode unik dan label QR/barcode, sehingga stok, kasir, dan laporan tertib tanpa catatan kertas. Bisa dipasang di komputer toko (WiFi/LAN, data tidak keluar ke internet) atau dihosting online agar bisa diakses dari mana saja.
 
 ## Fitur
 
@@ -50,6 +50,22 @@ buat-paket.bat --toko "Nama Toko"
 ```
 
 Hasilnya `dist\Q-mas-SiapJalan-<tanggal>.zip` berisi Python portable, semua paket, dan aplikasi. Di komputer tujuan: ekstrak, klik `jalankan.bat`, dan untuk mode server klik kanan `pasang-otomatis.bat` lalu Run as administrator (firewall dan jalan otomatis saat komputer menyala).
+
+## Hosting online (akses dari mana saja)
+
+Set `TOKOEMAS_ONLINE=1` dan aplikasi berjalan sebagai layanan web di belakang proxy HTTPS. GitHub Pages tidak bisa menjalankan aplikasi ini (hanya situs statis); yang dipakai adalah image Docker yang dibangun GitHub dan dijalankan di server/hosting.
+
+Perbedaan mode online: tidak dibatasi jaringan lokal; lisensi per-komputer tidak berlaku; akun pemilik pertama hanya bisa dibuat dengan **token pengaturan** (`TOKOEMAS_SETUP_TOKEN`) agar orang asing tidak bisa mengambil alih; login dibatasi (5 gagal per akun / 30 per alamat dalam 15 menit); header keamanan dan HSTS aktif.
+
+**Opsi A, server sendiri (VPS, paling hemat dan datanya di tangan Anda)**
+1. Server Linux dengan Docker; arahkan DNS domain ke IP server.
+2. `git clone https://github.com/mosugi98/qmas-kenanga && cd qmas-kenanga && cp .env.example .env`, isi `DOMAIN` dan `TOKOEMAS_SETUP_TOKEN` (buat acak: `openssl rand -hex 24`).
+3. `docker compose up -d`. Caddy mengurus sertifikat HTTPS otomatis. Buka `https://DOMAIN/setup`.
+4. Update: `docker compose pull && docker compose up -d`. Workflow **Docker** membangun image ke `ghcr.io/mosugi98/qmas-kenanga` di tiap push ke `main`.
+
+**Opsi B, Render.com**: Dashboard > New > Blueprint > pilih repo ini (`render.yaml`). Disk persisten (tempat database) butuh paket berbayar; tanpa disk, data hilang tiap deploy ulang. Token setup dibuat otomatis, lihat di Environment.
+
+Data (database SQLite, foto, backup harian) ada di volume `/data`. Backup juga bisa diunduh pemilik dari aplikasi; simpan salinannya di luar server. Jangan membuka port 8000 langsung ke internet; hanya proxy yang boleh menjangkaunya.
 
 ## Rilis dan pemasangan dari GitHub
 

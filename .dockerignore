@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+tests
+docs
+tools
+build
+dist
+data
+*.pem
+lisensi-*.key
+*.zip
