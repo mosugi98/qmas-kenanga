@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Ubah perhiasan' if item else 'Perhiasan baru' }}{% endblock %}
+{% block content %}
+<h1>{{ ('Ubah ' ~ item.code) if item else 'Perhiasan baru' }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if saved %}<p class="toast">Tersimpan sebagai <b>{{ saved.code }}</b>. <a href="/label/{{ saved.id }}">Lihat / cetak label</a></p>{% endif %}
+<div class="formgrid">
+<form method="post" enctype="multipart/form-data" class="card">
+  <p><label>Nama<br><input name="name" id="f-name" required value="{{ f.name }}"></label></p>
+  <p><label>Kode unik<br><input name="code" id="f-code" autocomplete="off" autocapitalize="characters" maxlength="30"
+      placeholder="{{ ('Kosongkan = otomatis (' ~ kode_berikut ~ ')') if kode_berikut else 'Kode perhiasan' }}" value="{{ f.code }}"></label>
+    <small class="muted" id="kode-status" aria-live="polite">{{ 'Boleh diubah. Label lama dengan kode sebelumnya tidak akan terbaca lagi.' if item else 'Bebas: huruf, angka, - _ . (3-30 karakter). Tidak boleh sama dengan kode lain.' }}</small></p>
+  <p><label>Jenis<br><select name="jenis">{% for j in JENIS %}<option {{ 'selected' if j == f.jenis }}>{{ j }}</option>{% endfor %}</select></label></p>
+  <p><label>Kadar<br><input name="kadar" id="f-kadar" required placeholder="22K" value="{{ f.kadar }}"></label></p>
+  <p><label>Berat (gram)<br><input name="berat" id="f-berat" type="number" step="0.001" min="0.001" required value="{{ f.berat }}"></label></p>
+  <p><label>Ongkos (Rp)<br><input name="ongkos" type="number" step="1" min="0" value="{{ f.ongkos }}"></label></p>
+  <p><label>Foto<br><input name="foto" type="file" accept="image/*"></label></p>
+  {% if item and item.foto %}<img class="thumb" style="max-width:200px" src="/foto/{{ item.foto }}" alt="">{% endif %}
+  <p class="actions">
+    {% if item %}<button>Simpan</button>{% else %}
+    <button name="aksi" value="label">Simpan &amp; buat label</button>
+    <button name="aksi" value="lagi" class="ghost">Simpan &amp; tambah lagi</button>{% endif %}
+    <a href="/katalog">Batal</a></p>
+</form>
+<aside class="labelcard preview" aria-label="Pratinjau label">
+  <b class="ln" id="p-name">{{ f.name or 'Nama perhiasan' }}</b>
+  {% set k0 = item.code if item else (f.code if f.code else '') %}
+  <img id="p-qr" src="{{ ('/kode/' ~ k0 ~ '/qr.svg') if k0 else '' }}" alt="QR" width="120" height="120" {{ 'hidden' if not k0 }}>
+  <img id="p-bc" class="bc" src="{{ ('/kode/' ~ k0 ~ '/barcode.svg') if k0 else '' }}" alt="Barcode" {{ 'hidden' if not k0 }}>
+  <div class="qrph" id="p-qrph" aria-hidden="true" {{ 'hidden' if k0 }}>QR</div>
+  <div class="bcph" id="p-bcph" aria-hidden="true" {{ 'hidden' if k0 }}></div>
+  <b class="lc" id="p-code">{{ k0 or 'GLD-······' }}</b>
+  {% if not item %}<small class="muted" id="p-note">{{ 'Kode, QR, dan barcode dibuat otomatis saat Anda menyimpan.' if not k0 else '' }}</small>{% endif %}
+  <span class="lk"><span id="p-kadar">{{ f.kadar }}</span> · <span id="p-berat">{{ f.berat or '0' }}</span> g</span>
+</aside>
+</div>
+<script>
+(function () {
+  var inp = document.getElementById('f-code'), st = document.getElementById('kode-status');
+  var itemId = {{ item.id if item else 'null' }}, kodeAsli = {{ (item.code if item else '') | tojson }};
+  var bawaan = st.textContent, timer = null;
+  function setPrev(kode) {
+    var on = !!kode;
+    var q = document.getElementById('p-qr'), b = document.getElementById('p-bc');
+    q.hidden = b.hidden = !on; document.getElementById('p-qrph').hidden = document.getElementById('p-bcph').hidden = on;
+    if (on) { q.src = '/kode/' + encodeURIComponent(kode) + '/qr.svg'; b.src = '/kode/' + encodeURIComponent(kode) + '/barcode.svg'; }
+    document.getElementById('p-code').textContent = kode || (itemId ? kodeAsli : 'GLD-······');
+    var n = document.getElementById('p-note'); if (n) n.textContent = on ? '' : 'Kode, QR, dan barcode dibuat otomatis saat Anda menyimpan.';
+  }
+  inp.addEventListener('input', function () {
+    clearTimeout(timer);
+    var v = inp.value.trim();
+    timer = setTimeout(async function () {
+      if (!v) { st.textContent = bawaan; st.className = 'muted'; setPrev(itemId ? kodeAsli : ''); return; }
+      try {
+        var r = await fetch('/api/items/kode-tersedia?kode=' + encodeURIComponent(v) + (itemId ? '&abaikan=' + itemId : ''));
+        var j = await r.json();
+        st.textContent = j.pesan; st.className = j.ok ? 'muted' : 'error';
+        setPrev(j.ok ? j.kode : (itemId ? kodeAsli : ''));
+      } catch (e) { /* abaikan; server tetap memvalidasi saat simpan */ }
+    }, 300);
+  });
+})();
+(function () {
+  var map = {'f-name': 'p-name', 'f-kadar': 'p-kadar', 'f-berat': 'p-berat'};
+  Object.keys(map).forEach(function (i) {
+    var inp = document.getElementById(i), out = document.getElementById(map[i]);
+    if (!inp || !out) return;
+    inp.addEventListener('input', function () {
+      var v = inp.value.trim();
+      out.textContent = v || (i === 'f-name' ? 'Nama perhiasan' : i === 'f-berat' ? '0' : '');
+    });
+  });
+})();
+</script>
+{% endblock %}

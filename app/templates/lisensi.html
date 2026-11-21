@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Lisensi{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="ph"><div><p class="sub">Aktivasi dan masa berlaku</p><h1>Lisensi Q-mas</h1></div></div>
+
+  {% if ok %}<p class="toast">Lisensi berhasil diaktifkan. Terima kasih!</p>{% endif %}
+
+  <section class="card lisensi-status lisensi-{{ st.kode }}">
+    <h2>
+      {% if st.boleh_pakai %}{{ 'Aktif' if st.kode in ('aktif','segera_habis') else 'Masa tenggang' }}{% else %}Belum aktif{% endif %}
+      {% if st.toko %}<span class="muted"> · {{ st.toko }}</span>{% endif %}
+    </h2>
+    <p>{{ st.pesan }}</p>
+  </section>
+
+  <section class="card">
+    <h2>Kode Perangkat</h2>
+    <p class="muted">Kirim kode ini ke penyedia aplikasi untuk mendapatkan kunci lisensi. Kode ini khusus untuk komputer ini.</p>
+    <p><code class="kode-besar" id="kp">{{ perangkat }}</code> <button type="button" class="ghost" id="salin-kp">Salin</button></p>
+  </section>
+
+  <form method="post" action="/lisensi" class="card">
+    <h2>{{ 'Perpanjang / ganti kunci' if st.boleh_pakai else 'Masukkan kunci lisensi' }}</h2>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <p><label>Kunci lisensi (tempel seluruhnya)<br>
+      <textarea name="kunci" rows="4" required spellcheck="false" autocomplete="off" style="width:100%;font-family:monospace" placeholder="QMAS1.…"></textarea></label></p>
+    <p><button>Aktifkan</button></p>
+  </form>
+
+  {% if not st.boleh_pakai %}
+  <section class="card">
+    <h2>Data Anda tetap aman</h2>
+    <p class="muted">Walau lisensi belum aktif, pemilik tetap bisa mengambil cadangan data. <a href="/login">Masuk sebagai pemilik</a> lalu unduh backup di bawah.</p>
+    {% if user and user.role == 'pemilik' %}<form method="post" action="/backup"><button class="ghost">Unduh backup sekarang</button></form>{% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('salin-kp').onclick = function () {
+  var t = document.getElementById('kp').textContent.trim(), b = this;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.textContent = 'Tersalin'; }, function () {
+    var r = document.createRange(); r.selectNodeContents(document.getElementById('kp')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Blok, lalu salin';
+  });
+};
+</script>
+{% endblock %}

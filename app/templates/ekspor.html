@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Ekspor data{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="ph"><div><p class="sub">Unduh data untuk dibuka di Excel atau Google Sheets</p><h1>Ekspor data</h1></div></div>
+
+  <section class="card">
+    <h2>Stok &amp; katalog</h2>
+    <p class="muted">Semua perhiasan ({{ jumlah }} item): kode, nama, jenis, kadar, berat, ongkos, status.</p>
+    <div class="row">
+      <a class="btn" href="/ekspor/stok.xlsx">Unduh Excel (.xlsx)</a>
+      <a class="btn ghost" href="/ekspor/stok.csv">Unduh CSV</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Transaksi</h2>
+    <p class="muted">Satu baris per item yang dijual atau dibeli, sesuai rentang tanggal. Transaksi yang dibatalkan ikut dengan status "batal".</p>
+    <form method="get" id="ft" class="formgrid">
+      <label>Dari tanggal <input type="date" name="dari" value="{{ awal }}" required></label>
+      <label>Sampai tanggal <input type="date" name="sampai" value="{{ akhir }}" required></label>
+      <label>Pemisah CSV
+        <select name="pemisah">
+          <option value=";">Titik koma ; (Excel Indonesia)</option>
+          <option value=",">Koma , (Google Sheets / Excel Inggris)</option>
+        </select></label>
+    </form>
+    <div class="row">
+      <button type="button" data-f="xlsx">Unduh Excel (.xlsx)</button>
+      <button type="button" class="ghost" data-f="csv">Unduh CSV</button>
+    </div>
+  </section>
+  <p class="muted">Ekspor hanya untuk pemilik dan dicatat di log aktivitas.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('button[data-f]').forEach(function (b) {
+  b.onclick = function () {
+    var f = document.getElementById('ft');
+    if (!f.reportValidity()) return;
+    location.href = '/ekspor/transaksi.' + b.dataset.f + '?' + new URLSearchParams(new FormData(f)).toString();
+  };
+});
+</script>
+{% endblock %}

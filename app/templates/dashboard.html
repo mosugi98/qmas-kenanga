@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Beranda{% endblock %}
+{% block content %}
+<div class="page">
+<header class="ph">
+  <div>
+    <span class="sub">{{ tanggal_panjang(today_date) }}</span>
+    <h1>Beranda</h1>
+  </div>
+  <a class="btn big" href="/transaksi/baru">Transaksi baru</a>
+</header>
+
+<section class="sec" aria-label="Harga emas hari ini">
+  <div class="sec-h">
+    <h2>Harga emas hari ini</h2>
+    {% if owner %}<a class="btn-text btn" href="/harga">Ubah harga</a>{% endif %}
+  </div>
+  {% if rates %}
+  <div class="rates">
+    {% for k, r in rates %}
+    <div class="rate">
+      <span class="pill">{{ k }}</span>
+      <div><span class="l">Jual per gram</span><span class="v">{{ r.jual|rupiah }}</span></div>
+      <span class="b">Beli {{ r.beli|rupiah }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Harga harian tidak wajib. Harga jual bisa diisi langsung saat transaksi di Kasir.{% if owner %} <a href="/harga">Isi harga harian (opsional)</a>.{% endif %}</p>
+  {% endif %}
+</section>
+
+<section class="sec" aria-label="Ringkasan">
+  <div class="sec-h">
+    <h2>Ringkasan</h2>
+    <div class="chips">
+      {% for key, label in presets %}<a class="chip {{ 'on' if preset == key }}" href="/?preset={{ key }}">{{ label }}</a>{% endfor %}
+    </div>
+  </div>
+  {% if error %}<p class="toast err">{{ error }}</p>{% endif %}
+  <details style="margin:0">
+    <summary class="btn-text" style="color:var(--gold);text-decoration:underline">Rentang tanggal sendiri · {{ start }} s/d {{ end }}</summary>
+    <form class="row" method="get">
+      <label>Dari<br><input type="date" name="start" value="{{ start }}"></label>
+      <label>Sampai<br><input type="date" name="end" value="{{ end }}"></label>
+      <button>Terapkan</button>
+    </form>
+  </details>
+  <div class="kpis">
+    <div class="kpi">
+      <span class="l">{{ 'Penjualan' if owner else 'Gramasi jual' }} {{ periode }}</span>
+      <span class="v">{{ d.penjualan|rupiah if owner else d.gram_jual|gram }}</span>
+      <span class="s">{% if owner %}{{ d.gram_jual|gram }} · {% endif %}{{ d.n_jual }} transaksi</span>
+    </div>
+    <div class="kpi">
+      <span class="l">{{ 'Pembelian' if owner else 'Gramasi beli' }} {{ periode }}</span>
+      <span class="v">{{ d.pembelian|rupiah if owner else d.gram_beli|gram }}</span>
+      <span class="s">{% if owner %}{{ d.gram_beli|gram }} · {% endif %}{{ d.n_beli }} transaksi</span>
+    </div>
+    <div class="kpi">
+      <span class="l">Stok tersedia</span>
+      <span class="v">{{ stok.jumlah }} perhiasan</span>
+      <span class="s">{{ stok.gram|gram }}</span>
+    </div>
+  </div>
+</section>
+
+{% if owner %}
+<section class="card">
+  <h2>Tren harian</h2>
+  <div class="legend">
+    <span><i class="sw s1"></i>Penjualan</span>
+    <span><i class="sw s2"></i>Pembelian</span>
+  </div>
+  <div class="chart" role="img" aria-label="Grafik batang penjualan dan pembelian per hari">
+    <div class="yaxis">{% for t in ticks|reverse %}<span>{{ t|jt }}</span>{% endfor %}</div>
+    <div class="plot">
+      {% for t in ticks %}<div class="gridline" style="bottom:{{ (t / top * 100)|round(2) }}%"></div>{% endfor %}
+      <div class="cols">
+        {% for p in d.series %}
+        <div class="grp" tabindex="0" data-tip="{{ p.tgl }}|Penjualan {{ p.penjualan|rupiah }}|Pembelian {{ p.pembelian|rupiah }}">
+          <div class="bar s1" style="height:{{ (p.penjualan / top * 100)|round(2) }}%"></div>
+          <div class="bar s2" style="height:{{ (p.pembelian / top * 100)|round(2) }}%"></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="xaxis"><span>{{ d.series[0].tgl }}</span>{% if d.series|length > 1 %}<span>{{ d.series[-1].tgl }}</span>{% endif %}</div>
+  <details>
+    <summary>Lihat sebagai tabel</summary>
+    <div class="tw"><table>
+      <tr><th>Tanggal</th><th class="num">Penjualan</th><th class="num">Pembelian</th></tr>
+      {% for p in d.series %}<tr><td>{{ p.tgl }}</td><td class="num">{{ p.penjualan|rupiah }}</td><td class="num">{{ p.pembelian|rupiah }}</td></tr>{% endfor %}
+    </table></div>
+  </details>
+</section>
+<div id="tip" class="tip" hidden></div>
+{% endif %}
+
+<section class="list" aria-label="Transaksi terbaru">
+  <h2>Transaksi {{ periode }}</h2>
+  {% for r in rows %}
+  <a class="txrow {{ 'batal' if r.batal }}" href="/transaksi/{{ r.id }}">
+    <span class="tag {{ r.kind }}">{{ r.label }}</span>
+    <span class="d">{{ r.desc }}{% if r.batal %} <span class="muted">(batal)</span>{% endif %}</span>
+    <span class="w">{{ r.berat|gram }}</span>
+    {% if owner %}<span class="n">{{ r.nilai|abs|rupiah }}{{ ' kembali' if r.kembali }}</span>{% endif %}
+    <span class="t">{{ r.jam }}</span>
+  </a>
+  {% else %}
+  <p class="empty">Belum ada transaksi {{ periode }}.</p>
+  {% endfor %}
+</section>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if owner %}
+<script>
+(function () {
+  const tip = document.getElementById('tip');
+  function show(g) {
+    const parts = g.dataset.tip.split('|');
+    tip.replaceChildren(...parts.map((t, i) => Object.assign(document.createElement(i ? 'div' : 'b'), { textContent: t })));
+    tip.hidden = false;
+    const r = g.getBoundingClientRect();
+    const left = r.left + r.width / 2 - tip.offsetWidth / 2;
+    tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, left)) + 'px';
+    tip.style.top = Math.max(8, r.top - tip.offsetHeight - 6) + 'px';
+  }
+  document.querySelectorAll('.grp').forEach(g => {
+    g.addEventListener('mouseenter', () => show(g));
+    g.addEventListener('focus', () => show(g));
+    g.addEventListener('mouseleave', () => { tip.hidden = true; });
+    g.addEventListener('blur', () => { tip.hidden = true; });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

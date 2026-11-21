@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "_ui.html" import jico %}
+{% block title %}Stok &amp; Katalog{% endblock %}
+{% block content %}
+<div class="page">
+<header class="ph">
+  <div>
+    <span class="sub num">{{ stok.jumlah }} perhiasan tersedia · {{ stok.gram|gram }}</span>
+    <h1>Stok &amp; Katalog</h1>
+  </div>
+  <div class="row"><a class="btn big" href="/katalog/baru">+ Perhiasan baru</a>
+  <a class="btn ghost" href="/katalog/massal">Buat banyak sekaligus</a></div>
+</header>
+
+<form class="tools" method="get">
+  <div class="find">
+    <label class="sr" for="cari">Cari nama atau kode</label>
+    <input id="cari" name="q" value="{{ q }}" placeholder="Cari nama atau kode">
+  </div>
+  <select name="kadar" aria-label="Kadar"><option value="">Semua kadar</option>{% for k in KADAR %}<option {{ 'selected' if k == kadar }}>{{ k }}</option>{% endfor %}</select>
+  <select name="status" aria-label="Status">
+    {% for v, t in [('tersedia', 'Tersedia'), ('terjual', 'Terjual'), ('nonaktif', 'Nonaktif'), ('semua', 'Semua status')] %}<option value="{{ v }}" {{ 'selected' if v == status }}>{{ t }}</option>{% endfor %}
+  </select>
+  {% if jenis %}<input type="hidden" name="jenis" value="{{ jenis }}">{% endif %}
+  <button class="ghost">Cari</button>
+</form>
+<div class="chips" role="group" aria-label="Kategori">
+  {% for j in [''] + JENIS %}
+  <a class="chip {{ 'on' if j == jenis }}" {% if j == jenis %}aria-current="true"{% endif %} href="/katalog?{{ {'jenis': j, 'q': q, 'kadar': kadar, 'status': status}|urlencode }}">{{ j or 'Semua' }}</a>
+  {% endfor %}
+</div>
+
+{% if not items %}<p class="empty" style="padding:48px 0">Tidak ada perhiasan yang cocok. Coba kata kunci atau kategori lain.</p>{% endif %}
+<div class="cards">
+{% for it in items %}
+  <article class="pcard">
+    <div class="pimg">
+      {% if it.foto %}<img src="/foto/{{ it.foto }}" alt="{{ it.name }}" loading="lazy">
+      {% else %}{{ jico(it.jenis, 48) }}<span>Foto perhiasan</span>{% endif %}
+    </div>
+    <div class="pbody">
+      <div class="top"><span class="nm">{{ it.name }}</span><span class="pill">{{ it.kadar }}</span></div>
+      <span class="mt">{{ it.code }} · {{ it.berat|gram }}</span>
+      <span class="es">{{ it.est|rupiah if it.est is not none else 'Harga hari ini belum diisi' }}</span>
+    </div>
+    {% if it.status == 'tersedia' %}
+    <button class="ghost add" data-id="{{ it.id }}" {{ 'disabled' if it.in_cart }}>{{ 'Sudah di kasir' if it.in_cart else 'Tambah ke kasir' }}</button>
+    {% else %}
+    <span class="st" style="align-self:flex-start;margin:0 4px">{{ it.status|capitalize }}</span>
+    {% endif %}
+    <div class="plinks"><a href="/katalog/{{ it.id }}/edit">Ubah</a><a href="/label/{{ it.id }}">Label</a><label class="pick"><input type="checkbox" class="pk" value="{{ it.id }}" aria-label="Pilih {{ it.code }} untuk cetak label"> Pilih</label></div>
+  </article>
+{% endfor %}
+</div>
+<div class="pickbar noprint" id="pickbar" hidden>
+  <span id="pick-n">0 dipilih</span>
+  <button type="button" id="pick-print">Cetak label terpilih</button>
+  <a href="#" id="pick-all">Pilih semua di halaman</a>
+  <a href="#" id="pick-none">Batal</a>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var cbs = Array.prototype.slice.call(document.querySelectorAll('input.pk')), bar = document.getElementById('pickbar');
+  function ids() { return cbs.filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+  function refresh() { var n = ids().length; bar.hidden = n === 0; document.getElementById('pick-n').textContent = n + ' dipilih'; }
+  cbs.forEach(function (c) { c.addEventListener('change', refresh); });
+  document.getElementById('pick-all').onclick = function (e) { e.preventDefault(); cbs.forEach(function (c) { c.checked = true; }); refresh(); };
+  document.getElementById('pick-none').onclick = function (e) { e.preventDefault(); cbs.forEach(function (c) { c.checked = false; }); refresh(); };
+  document.getElementById('pick-print').onclick = function () { location.href = '/label/cetak?ids=' + ids().join(','); };
+})();
+document.querySelectorAll('button.add').forEach(b => {
+  b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const r = await fetch('/api/keranjang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_id: +b.dataset.id }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Gagal menambah');
+      b.textContent = 'Sudah di kasir';
+    } catch (e) { b.disabled = false; b.textContent = e.message; }
+  };
+});
+</script>
+{% endblock %}

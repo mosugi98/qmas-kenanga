@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Scan opname{% endblock %}
+{% block content %}
+<div class="page">
+<div class="ph"><div><h1>{{ lap.nama }}</h1><span class="sub">Scan setiap perhiasan. Scanner USB langsung bekerja, tidak perlu menekan apa pun.</span></div></div>
+
+<div class="opn-sum" id="sum">
+  <div><small>Stok awal</small><b id="s-awal">{{ lap.awal.pcs }}</b></div>
+  <div class="good"><small>Cocok (discan)</small><b id="s-cocok">{{ lap.cocok.pcs }}</b></div>
+  <div><small>Terjual</small><b id="s-terjual">{{ lap.terjual.pcs }}</b></div>
+  <div class="bad"><small>Belum ditemukan</small><b id="s-hilang">{{ lap.hilang.pcs }}</b></div>
+</div>
+
+<div class="opn-scan">
+  <input id="scan-kode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan kode di sini" aria-label="Kode perhiasan">
+  <button type="button" class="ghost" id="kirim">Cek</button>
+</div>
+
+<div class="opn-last" id="last" role="status" aria-live="polite"><span class="muted">Menunggu scan pertama…</span></div>
+
+<h2>Scan terakhir</h2>
+<ul class="opn-log" id="log"></ul>
+
+<form class="card" method="post" action="/opname/{{ take_id }}/selesai" onsubmit="return confirm('Selesaikan opname? Laporan akan dikunci.')">
+  <label class="field"><span>Catatan (opsional)</span><input name="catatan" maxlength="500"></label>
+  <button class="big">Selesai &amp; lihat laporan</button>
+</form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/scanner.js"></script>
+<script>
+(function () {
+  var TAKE = {{ take_id }};
+  var $ = function (id) { return document.getElementById(id); };
+  var BEEP = {cocok: 'ok', duplikat: 'dup', baru_masuk: 'ok'};
+  function set(id, v) { $(id).textContent = v; }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  async function kirim(kode) {
+    var r, j;
+    try {
+      r = await fetch('/opname/' + TAKE + '/scan', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kode: kode})});
+      j = await r.json();
+    } catch (e) { UsbScan.beep('err'); $('last').className = 'opn-last tidak_dikenal'; $('last').textContent = 'Gagal terhubung ke server'; return; }
+    if (!r.ok) { UsbScan.beep('err'); $('last').className = 'opn-last tidak_dikenal'; $('last').textContent = j.detail || 'Gagal'; return; }
+    UsbScan.beep(BEEP[j.hasil] || 'err');
+    var it = j.item;
+    $('last').className = 'opn-last ' + j.hasil;
+    $('last').innerHTML = '<b>' + esc(it ? it.name : j.kode) + '</b><span>' + esc(j.kode) + (it ? ' · ' + esc(it.kadar) + ' · ' + String(it.berat).replace('.', ',') + ' g' : '') + '</span><br>' + esc(j.pesan);
+    var s = j.ringkasan;
+    set('s-awal', s.awal.pcs); set('s-cocok', s.cocok.pcs); set('s-terjual', s.terjual.pcs); set('s-hilang', s.hilang.pcs);
+    var li = document.createElement('li');
+    li.innerHTML = '<span>' + esc(j.kode) + '</span><span>' + esc(j.pesan) + '</span>';
+    $('log').insertBefore(li, $('log').firstChild);
+    while ($('log').children.length > 30) $('log').removeChild($('log').lastChild);
+  }
+  UsbScan.bindInput($('scan-kode'), kirim);
+  UsbScan.attach(kirim);
+  $('kirim').onclick = function () { var el = $('scan-kode'); var v = el.value.trim(); el.value = ''; if (v) kirim(v.toUpperCase()); el.focus(); };
+})();
+</script>
+{% endblock %}

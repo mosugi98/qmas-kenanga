@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Laporan opname{% endblock %}
+{% block content %}
+<div class="page">
+<div class="ph"><div><h1>{{ lap.nama }}</h1>
+  <span class="sub">Mulai {{ lap.mulai[5:16] }}{% if lap.selesai %} · selesai {{ lap.selesai[5:16] }}{% else %} · masih berjalan{% endif %}</span></div></div>
+
+{% if lap.hilang.pcs %}
+<div class="hilang-box"><b>HILANG: {{ lap.hilang.pcs }} pcs ({{ lap.hilang.gram|string|replace('.', ',') }} g)</b>
+  <br>Tidak ditemukan saat scan dan tidak tercatat terjual.</div>
+{% else %}
+<div class="ok-box"><b>Tidak ada barang hilang.</b> Semua stok awal terhitung: ditemukan atau tercatat terjual.</div>
+{% endif %}
+
+<div class="opn-sum">
+  <div><small>Stok awal</small><b>{{ lap.awal.pcs }}</b><small>{{ lap.awal.gram|string|replace('.', ',') }} g</small></div>
+  <div class="good"><small>Cocok</small><b>{{ lap.cocok.pcs }}</b><small>{{ lap.cocok.gram|string|replace('.', ',') }} g</small></div>
+  <div><small>Terjual</small><b>{{ lap.terjual.pcs }}</b><small>{{ lap.terjual.gram|string|replace('.', ',') }} g</small></div>
+  <div class="bad"><small>Hilang</small><b>{{ lap.hilang.pcs }}</b><small>{{ lap.hilang.gram|string|replace('.', ',') }} g</small></div>
+</div>
+{% if lap.nonaktif.pcs %}<p class="muted">Nonaktif: {{ lap.nonaktif.pcs }} pcs (tidak dihitung hilang).</p>{% endif %}
+
+{% if lap.hilang.daftar %}
+<h2>Daftar barang hilang</h2>
+<div class="tw"><table>
+  <tr><th>Kode</th><th>Nama</th><th>Kadar</th><th class="num">Gram</th></tr>
+  {% for d in lap.hilang.daftar %}<tr><td><a href="/lacak?kode={{ d.code }}">{{ d.code }}</a></td><td>{{ d.name }}</td><td>{{ d.kadar }}</td><td class="num">{{ d.berat|string|replace('.', ',') }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+{% if lap.terjual.daftar %}
+<h2>Terjual selama periode ini</h2>
+<div class="tw"><table>
+  <tr><th>Kode</th><th>Nama</th><th>Nota</th><th class="num">Gram</th></tr>
+  {% for d in lap.terjual.daftar %}<tr><td>{{ d.code }}</td><td>{{ d.name }}</td><td>{% if d.nota %}<a href="/transaksi/{{ d.nota }}">#{{ d.nota }}</a>{% else %}<span class="error">tanpa nota</span>{% endif %}</td><td class="num">{{ d.berat|string|replace('.', ',') }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+{% if lap.temuan or lap.baru_masuk.kode %}
+<h2>Temuan perlu dicek</h2>
+<div class="tw"><table>
+  <tr><th>Kode</th><th>Keterangan</th></tr>
+  {% for t in lap.temuan %}<tr><td><a href="/lacak?kode={{ t.kode }}">{{ t.kode }}</a></td><td>{{ {'tidak_dikenal': 'Tidak terdaftar di katalog', 'terjual_ada': 'Tercatat terjual tetapi barangnya ada', 'nonaktif_ada': 'Tercatat nonaktif tetapi barangnya ada'}.get(t.hasil, t.hasil) }}</td></tr>{% endfor %}
+  {% for k in lap.baru_masuk.kode %}<tr><td>{{ k }}</td><td>Barang baru, ditambahkan setelah opname dimulai</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+{% if lap.catatan %}<p><b>Catatan:</b> {{ lap.catatan }}</p>{% endif %}
+
+<div class="row noprint">
+  {% if lap.status == 'berjalan' %}<a class="btn big" href="/opname/{{ take_id }}">Kembali scan</a>{% endif %}
+  {% if user.role == 'pemilik' %}
+  <a class="btn ghost" href="/opname/{{ take_id }}/ekspor.xlsx">Unduh Excel</a>
+  <a class="btn ghost" href="/opname/{{ take_id }}/ekspor.csv">Unduh CSV</a>
+  {% endif %}
+  <button type="button" class="ghost" onclick="window.print()">Cetak</button>
+</div>
+</div>
+{% endblock %}

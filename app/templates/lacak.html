@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Lacak barang{% endblock %}
+{% block content %}
+<div class="page">
+<div class="ph"><div><h1>Lacak barang</h1><span class="sub">Scan atau ketik kode untuk melihat status, riwayat penjualan, dan hasil opname</span></div></div>
+<div class="opn-scan">
+  <input id="scan-kode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan kode, atau ketik nama/kode lalu Enter" aria-label="Kode atau nama">
+  <button type="button" class="ghost" id="cari">Cari</button>
+</div>
+<div id="hasil"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/scanner.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var STATUS = {tersedia: 'Tersedia (ada di stok)', terjual: 'TERJUAL', nonaktif: 'Nonaktif'};
+  var TIPE = {jual: 'Dijual', beli_pelanggan: 'Dibeli dari pelanggan', beli_supplier: 'Dibeli dari supplier'};
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function g(v) { return String(v).replace('.', ','); }
+  async function detail(kode) {
+    var r = await fetch('/api/lacak?kode=' + encodeURIComponent(kode));
+    if (!r.ok) { UsbScan.beep('err'); $('hasil').innerHTML = '<div class="opn-last tidak_dikenal"><b>' + esc(kode) + '</b>Kode tidak terdaftar di katalog.</div>'; return; }
+    var j = await r.json(), it = j.item;
+    UsbScan.beep('ok');
+    var h = '<div class="opn-last ' + (it.status === 'tersedia' ? 'cocok' : 'duplikat') + '"><b>' + esc(it.name) + '</b>' + esc(it.code) + ' · ' + esc(it.kadar) + ' · ' + g(it.berat) + ' g<br>Status: <strong>' + esc(STATUS[it.status] || it.status) + '</strong></div>';
+    h += '<h2>Riwayat transaksi</h2><div class="tw"><table><tr><th>Nota</th><th>Waktu</th><th>Jenis</th><th>Pihak</th><th>Kasir</th></tr>';
+    if (!j.transaksi.length) h += '<tr><td colspan="5" class="muted">Belum pernah ada transaksi.</td></tr>';
+    j.transaksi.forEach(function (t) {
+      h += '<tr><td><a href="/transaksi/' + t.id + '">#' + t.id + '</a></td><td>' + esc(t.tanggal.slice(5, 16)) + '</td><td>' + esc(TIPE[t.tipe] || t.tipe) + (t.status === 'batal' ? ' <span class="error">(batal)</span>' : '') + '</td><td>' + esc(t.pihak) + '</td><td>' + esc(t.kasir) + '</td></tr>';
+    });
+    h += '</table></div><h2>Hasil opname</h2><div class="tw"><table><tr><th>Opname</th><th>Mulai</th><th>Hasil</th></tr>';
+    if (!j.opname.length) h += '<tr><td colspan="3" class="muted">Belum pernah ikut opname.</td></tr>';
+    j.opname.forEach(function (o) {
+      h += '<tr><td><a href="/opname/' + o.id + '/laporan">' + esc(o.nama) + '</a></td><td>' + esc(o.mulai.slice(5, 16)) + '</td><td>' + (o.ditemukan ? 'Ditemukan' : 'Tidak ditemukan') + '</td></tr>';
+    });
+    $('hasil').innerHTML = h + '</table></div>';
+  }
+  async function cari(teks) {
+    teks = teks.trim();
+    if (!teks) return;
+    var r = await fetch('/api/lacak?kode=' + encodeURIComponent(teks));
+    if (r.ok) return detail(teks);
+    var d = await (await fetch('/api/lacak?q=' + encodeURIComponent(teks))).json();
+    if (!d.daftar.length) { UsbScan.beep('err'); $('hasil').innerHTML = '<p class="muted">Tidak ada barang yang cocok dengan “' + esc(teks) + '”.</p>'; return; }
+    var h = '<div class="tw"><table><tr><th>Kode</th><th>Nama</th><th>Kadar</th><th class="num">Gram</th><th>Status</th></tr>';
+    d.daftar.forEach(function (x) { h += '<tr><td><a href="#" data-k="' + esc(x.code) + '">' + esc(x.code) + '</a></td><td>' + esc(x.name) + '</td><td>' + esc(x.kadar) + '</td><td class="num">' + g(x.berat) + '</td><td>' + esc(STATUS[x.status] || x.status) + '</td></tr>'; });
+    $('hasil').innerHTML = h + '</table></div>';
+    $('hasil').querySelectorAll('a[data-k]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); detail(a.dataset.k); }; });
+  }
+  UsbScan.bindInput($('scan-kode'), cari);
+  UsbScan.attach(cari);
+  $('cari').onclick = function () { var el = $('scan-kode'); var v = el.value; el.value = ''; cari(v); el.focus(); };
+  var q = new URLSearchParams(location.search).get('kode');
+  if (q) detail(q);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set satu = items|length == 1 %}
+{% block title %}{{ ('Label ' ~ items[0].code) if satu else 'Cetak label' }}{% endblock %}
+{% block content %}
+<div class="page labelpage">
+  <div class="ph noprint">
+    <div>
+      <p class="sub">{{ 'Perhiasan tersimpan. Kode, QR, dan barcode sudah dibuat otomatis.' if baru else ('Label perhiasan' if satu else (items|length ~ ' perhiasan dipilih')) }}</p>
+      <h1>{{ items[0].code if satu else 'Cetak label' }}</h1>
+    </div>
+  </div>
+
+  <form method="get" class="card noprint labelopt">
+    {% if ids %}<input type="hidden" name="ids" value="{{ ids }}">{% endif %}
+    <fieldset><legend>Isi label</legend>
+      <label><input type="radio" name="isi" value="keduanya" {{ 'checked' if opsi.isi == 'keduanya' }}> QR + Barcode</label>
+      <label><input type="radio" name="isi" value="qr" {{ 'checked' if opsi.isi == 'qr' }}> QR saja</label>
+      <label><input type="radio" name="isi" value="barcode" {{ 'checked' if opsi.isi == 'barcode' }}> Barcode saja</label>
+    </fieldset>
+    <label>Ukuran
+      <select name="ukuran">
+        <option value="kecil" {{ 'selected' if opsi.ukuran == 'kecil' }}>Kecil (lebar 40 mm)</option>
+        <option value="sedang" {{ 'selected' if opsi.ukuran == 'sedang' }}>Sedang (lebar 55 mm)</option>
+        <option value="besar" {{ 'selected' if opsi.ukuran == 'besar' }}>Besar (lebar 80 mm)</option>
+      </select></label>
+    <label>Salinan per perhiasan <input type="number" name="salinan" min="1" max="100" value="{{ opsi.salinan }}" style="width:90px"></label>
+    <label><input type="checkbox" name="garis" value="1" {{ 'checked' if opsi.garis }}> Garis potong</label>
+    <button class="ghost">Terapkan</button>
+  </form>
+
+  <div class="labelsheet{{ ' potong' if opsi.garis }}">
+  {% for it in daftar %}
+    <div class="labelcard lbl-{{ opsi.ukuran }}">
+      <b class="ln">{{ it.name }}</b>
+      {% if opsi.isi in ('keduanya', 'qr') %}<img class="qr" src="/kode/{{ it.code }}/qr.svg" alt="QR {{ it.code }}">{% endif %}
+      {% if opsi.isi in ('keduanya', 'barcode') %}<img class="bc" src="/kode/{{ it.code }}/barcode.svg" alt="Barcode {{ it.code }}">{% endif %}
+      <b class="lc">{{ it.code }}</b>
+      <span class="lk">{{ it.kadar }} · {{ it.berat|gram }}</span>
+    </div>
+  {% endfor %}
+  </div>
+
+  <div class="actions noprint">
+    <button type="button" onclick="window.print()">Cetak {{ daftar|length }} label</button>
+    <a href="/katalog/baru">Tambah perhiasan lagi</a> · <a href="/katalog/massal">Buat banyak sekaligus</a>
+    <a href="/katalog">Ke katalog</a>
+  </div>
+</div>
+{% endblock %}

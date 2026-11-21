@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Sertifikat HTTPS{% endblock %}
+{% block content %}
+<h1>Kamera tidak aktif?</h1>
+<p>Kamera di browser hanya jalan pada alamat HTTPS. Aplikasi ini memakai sertifikat buatan sendiri, jadi setiap HP perlu mempercayainya satu kali.</p>
+<ol>
+  <li>Saat browser menampilkan peringatan sertifikat, pilih <b>Lanjutkan / Advanced → Proceed</b>. Coba lagi tombol Kamera di halaman Scan.</li>
+  <li>Jika kamera masih diblokir: unduh sertifikat di bawah, lalu pasang di HP (Android: Pengaturan → Keamanan → Sertifikat CA; iPhone: buka berkas, pasang profil, lalu aktifkan di Pengaturan → Umum → Info → Pengaturan Kepercayaan Sertifikat).</li>
+  <li>Tanpa kamera pun tetap bisa: pakai scanner USB/Bluetooth atau ketik kodenya.</li>
+</ol>
+{% if ada %}<p><a href="/sertifikat.crt"><button>Unduh sertifikat</button></a></p>{% else %}<p class="error">Sertifikat belum dibuat. Jalankan aplikasi lewat <code>run.py</code> / jalankan.bat.</p>{% endif %}
+{% endblock %}

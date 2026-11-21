@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Pengguna dan backup{% endblock %}
+{% block content %}
+<h1>Pengguna</h1>
+{% if ok %}<p>{{ ok }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="tw"><table>
+  <tr><th>Nama</th><th>Peran</th><th>Ganti kata sandi</th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}</td><td>{{ u.role }}</td>
+    <td><form method="post" action="/pengguna/{{ u.id }}/sandi" class="row">
+      <input name="password" type="password" placeholder="Kata sandi baru" required><button>Simpan</button></form></td>
+  </tr>
+  {% endfor %}
+</table></div>
+<form method="post" action="/pengguna" class="card">
+  <h2>Tambah pengguna</h2>
+  <p><label>Nama pengguna<br><input name="username" required></label></p>
+  <p><label>Kata sandi (minimal 6 karakter)<br><input name="password" type="password" required></label></p>
+  <p><label>Peran<br><select name="role"><option value="kasir">kasir</option><option value="pemilik">pemilik</option></select></label></p>
+  <p><button>Tambah</button></p>
+</form>
+<section class="card">
+  <h2>Backup</h2>
+  <p class="muted">Berisi database dan semua foto. Backup otomatis harian tersimpan di folder <code>data/backup</code>. Salin zip ke flashdisk secara berkala.</p>
+  <form method="post" action="/backup"><button>Unduh backup sekarang</button></form>
+</section>
+{% endblock %}

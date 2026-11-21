@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% from "_ui.html" import ico, I %}
+{% block title %}Kasir{% endblock %}
+{% block content %}
+<div class="page">
+<header class="ph">
+  <div>
+    <span class="sub" id="modenote"></span>
+    <h1>Kasir</h1>
+  </div>
+  <a class="btn ghost big" id="btn-scan" href="/scan">{{ ico(I.scan, 20) }}<span>Scan kode</span></a>
+</header>
+
+<p id="harga-info" class="toast" hidden>Harga harian tidak diisi. Ketik <b>harga per gram</b> pada tiap perhiasan; harga yang diketik dipakai juga untuk perhiasan lain berkadar sama.</p>
+
+<div class="chips" role="group" aria-label="Jenis transaksi" id="modes"></div>
+
+<div class="kasir">
+<div class="kcol">
+
+<section class="panel" id="sec-items" aria-label="Perhiasan">
+  <div class="panel-h"><h2>Perhiasan</h2><span class="sub" id="cart-count"></span></div>
+  <div class="scanrow">
+    <label class="sr" for="kode">Kode perhiasan</label>
+    <input id="kode" placeholder="Scan atau ketik kode, lalu Enter" autocomplete="off">
+    <button type="button" class="ghost" id="btn-kode">Tambah</button>
+  </div>
+  <p id="warn" class="toast err" role="alert" hidden></p>
+  <p class="empty" id="cart-empty">Belum ada perhiasan. Scan kode atau pilih dari katalog di bawah.</p>
+  <div id="cart"></div>
+  <div class="addbar">
+    <h3>Tambah dari katalog</h3>
+    <p class="sub" id="no-chips" hidden style="margin:0">Semua perhiasan tersedia sudah ada di kasir.</p>
+    <div class="chips" id="chips"></div>
+    <a href="/katalog">Lihat seluruh katalog</a>
+  </div>
+</section>
+
+<section class="panel gap" id="sec-trade" aria-label="Emas dari pelanggan">
+  <h2 id="trade-title">Emas dari pelanggan</h2>
+  <div id="trades"></div>
+  <div><button type="button" class="ghost" id="btn-trade-add">+ Tambah emas lain</button></div>
+</section>
+
+</div>
+
+<aside class="summary" aria-label="Ringkasan transaksi">
+  <h2>Ringkasan</h2>
+  <label class="field"><span id="pihak-label">Nama pelanggan (opsional)</span><input id="pihak" autocomplete="off"></label>
+  <div class="srows">
+    <div class="srows" id="sum-items">
+      <div class="srow"><span>Total berat</span><span id="s-berat"></span></div>
+      <div class="srow"><span>Nilai emas</span><span id="s-emas"></span></div>
+      <div class="srow"><span>Ongkos</span><span id="s-ong"></span></div>
+    </div>
+    <div class="srow" id="sum-trade"><span id="s-trade-l"></span><span id="s-trade"></span></div>
+  </div>
+  <div class="total"><span id="t-label">Total bayar</span><b id="t-val">Rp 0</b></div>
+  <div class="field">
+    <span>Pembayaran</span>
+    <div class="chips" role="group" aria-label="Metode pembayaran" id="pays"></div>
+  </div>
+  <button type="button" class="big full" id="simpan" disabled>Selesaikan transaksi</button>
+  <p class="toast" id="toast" role="status" hidden></p>
+</aside>
+
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/lookup.js"></script>
+<script src="/static/scanner.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const JENIS = {{ JENIS|tojson }};
+const KADAR = {{ KADAR|tojson }};
+const ICON = {{ JENIS_PATHS|tojson }};
+const NS = 'http://www.w3.org/2000/svg';
+const MODES = [
+  ['jual', 'Jual', 'Pilih perhiasan yang dibeli pelanggan'],
+  ['beli_pelanggan', 'Beli dari pelanggan', 'Timbang emas pelanggan, harga beli otomatis'],
+  ['tukar_tambah', 'Tukar tambah', 'Perhiasan baru dikurangi emas lama pelanggan'],
+  ['beli_supplier', 'Beli dari supplier', 'Catat emas atau perhiasan yang dibeli dari supplier'],
+];
+const PAYS = ['Tunai', 'Transfer', 'QRIS'];
+
+const S = { mode: 'jual', cart: [], ov: {}, trades: [], pay: 'Tunai', avail: [], last: {} };
+let PRICES = {};
+let refs = { cart: {}, trades: [] };
+
+function h(tag, a, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(a || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e[k] = v;
+    else if (k in e) e[k] = v;
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  kids.flat().forEach(c => { if (c != null) e.append(c); });
+  return e;
+}
+function icon(jenis, size) {
+  const s = document.createElementNS(NS, 'svg');
+  s.setAttribute('viewBox', '0 0 28 28'); s.setAttribute('width', size); s.setAttribute('height', size);
+  ['fill:none', 'stroke:currentColor', 'stroke-width:1.5', 'stroke-linecap:round', 'stroke-linejoin:round', 'aria-hidden:true']
+    .forEach(p => { const [k, v] = p.split(':'); s.setAttribute(k, v); });
+  const p = document.createElementNS(NS, 'path'); p.setAttribute('d', ICON[jenis] || ICON.Lainnya); s.append(p);
+  return s;
+}
+const showItems = () => S.mode === 'jual' || S.mode === 'tukar_tambah';
+const showTrade = () => S.mode !== 'jual';
+const sell = k => (PRICES[k] ? PRICES[k].jual : 0);
+const buy = k => (PRICES[k] ? PRICES[k].beli : 0);
+const newTrade = () => ({ kadar: '22K', berat: 0, harga: null, ongkos: 0, baru: false, nama: '', jenis: 'Cincin', open: !buy('22K') });
+
+function eff(it) {
+  const o = S.ov[it.id] || {};
+  return { harga: o.harga != null ? o.harga : (sell(it.kadar) || it.harga_jual || S.last[it.kadar] || 0), ongkos: o.ongkos != null ? o.ongkos : it.ongkos };
+}
+const effT = t => (t.harga != null ? t.harga : (buy(t.kadar) || S.last['b' + t.kadar] || 0));
+const sub = (berat, harga, ongkos) => Math.round((+berat || 0) * (+harga || 0)) + (+ongkos || 0);
+function showWarn(msg) { $('warn').textContent = msg; $('warn').hidden = !msg; }
+function toast(node, err) {
+  const t = $('toast'); t.className = 'toast' + (err ? ' err' : ''); t.replaceChildren(node); t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 6000);
+}
+
+/* ---- keranjang perhiasan (disimpan di server agar sinkron dengan scan di HP) ---- */
+function renderCart() {
+  const box = $('cart'); box.replaceChildren(); refs.cart = {};
+  S.cart.forEach(it => {
+    const r = { };
+    r.meta = h('span'); r.ong = h('span', { class: 'num', style: 'font-size:14px;font-weight:500' }); r.sub = h('span', { class: 'csub' });
+    const harga = h('input', { type: 'number', min: 0, step: 1, value: '', placeholder: 'isi harga', oninput: () => { (S.ov[it.id] = S.ov[it.id] || {}).harga = harga.value === '' ? null : +harga.value; if (harga.value !== '') S.last[it.kadar] = +harga.value; refresh(); } });
+    const ong = h('input', { type: 'number', min: 0, step: 1, value: '', oninput: () => { (S.ov[it.id] = S.ov[it.id] || {}).ongkos = ong.value === '' ? null : +ong.value; refresh(); } });
+    r.harga = harga; r.ongInput = ong;
+    const more = h('div', { class: 'more', hidden: !!(sell(it.kadar) || it.harga_jual) },
+      h('label', {}, 'Harga per gram (Rp)', harga), h('label', {}, 'Ongkos (Rp)', ong));
+    const stepOng = d => { const o = (S.ov[it.id] = S.ov[it.id] || {}); o.ongkos = Math.max(0, eff(it).ongkos + d); refresh(); };
+    const row = h('div', { class: 'cartrow' },
+      h('div', { class: 'itile' }, icon(it.jenis, 28)),
+      h('div', { class: 'cinfo' }, h('b', { text: it.name }), r.meta,
+        h('button', { type: 'button', class: 'text', style: 'min-height:32px;align-self:flex-start;padding:0', text: 'Ubah harga', onclick: () => { more.hidden = !more.hidden; } })),
+      h('div', { class: 'stepper' },
+        h('button', { type: 'button', class: 'step', 'aria-label': 'Kurangi ongkos ' + it.name, text: '−', onclick: () => stepOng(-5000) }),
+        h('div', { class: 'mid' }, h('small', { text: 'Ongkos' }), r.ong),
+        h('button', { type: 'button', class: 'step', 'aria-label': 'Tambah ongkos ' + it.name, text: '+', onclick: () => stepOng(5000) })),
+      r.sub,
+      h('button', { type: 'button', class: 'step x', 'aria-label': 'Hapus ' + it.name, onclick: () => removeItem(it.id) }, '✕'),
+      more);
+    refs.cart[it.id] = r;
+    box.append(row);
+  });
+  $('cart-empty').hidden = S.cart.length > 0;
+  $('cart-count').textContent = S.cart.length + ' item';
+}
+
+function renderChips() {
+  const box = $('chips'); box.replaceChildren();
+  S.avail.forEach(a => box.append(h('button', { type: 'button', class: 'addchip', 'aria-label': 'Tambah ' + a.name + ' ' + a.code, onclick: () => addItem(a.id) },
+    icon(a.jenis, 22), h('b', { text: a.name }), h('em', { text: a.code }))));
+  $('no-chips').hidden = S.avail.length > 0;
+}
+
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Permintaan gagal');
+  return data;
+}
+function mergeCart(items) {
+  const same = items.map(i => i.id).join(',') === S.cart.map(i => i.id).join(',');
+  if (same) return;
+  S.cart = items;
+  renderCart(); loadAvail(); refresh();
+}
+async function pull() {
+  if (document.hidden) return;
+  try { mergeCart((await api('GET', '/api/keranjang')).items); } catch (e) { /* coba lagi pada putaran berikut */ }
+}
+async function loadAvail() {
+  try { S.avail = (await api('GET', '/api/items/tersedia?limit=6')).items; renderChips(); } catch (e) { /* abaikan */ }
+}
+async function addItem(id) {
+  showWarn('');
+  try { mergeCart((await api('POST', '/api/keranjang', { item_id: id })).items); }
+  catch (e) { showWarn(e.message); }
+}
+async function removeItem(id) {
+  try { mergeCart((await api('DELETE', '/api/keranjang/' + id)).items); } catch (e) { showWarn(e.message); }
+}
+async function addByCode() {
+  const code = $('kode').value.trim();
+  if (!code) return;
+  showWarn('');
+  try {
+    const it = await lookupCode(code);
+    if (it.status !== 'tersedia') throw new Error(it.code + ' berstatus ' + it.status + ', tidak bisa dijual');
+    await addItem(it.id);
+  } catch (e) { showWarn(e.message); }
+  $('kode').value = ''; $('kode').focus();
+}
+
+/* ---- emas dari pelanggan / supplier ---- */
+function renderTrades() {
+  const box = $('trades'); box.replaceChildren(); refs.trades = [];
+  S.trades.forEach((t, idx) => {
+    const r = {};
+    r.rate = h('span', { class: 'sub' }); r.val = h('span', { class: 'big-n' });
+    const berat = h('input', { class: 'numfield lg', type: 'number', min: 0, step: '0.01', value: t.berat || '', placeholder: '0', 'aria-label': 'Berat dalam gram',
+      oninput: () => { t.berat = berat.value === '' ? 0 : +berat.value; refresh(); } });
+    r.berat = berat;
+    const step = d => { t.berat = Math.max(0, Math.round(((+t.berat || 0) + d) * 100) / 100); berat.value = t.berat || ''; refresh(); };
+    const harga = h('input', { type: 'number', min: 0, step: 1, placeholder: buy(t.kadar) ? 'otomatis' : 'isi harga', value: t.harga != null ? t.harga : '', oninput: () => { t.harga = harga.value === '' ? null : +harga.value; if (harga.value !== '') S.last['b' + t.kadar] = +harga.value; refresh(); } });
+    const ong = h('input', { type: 'number', min: 0, step: 1, value: t.ongkos || '', placeholder: '0', oninput: () => { t.ongkos = ong.value === '' ? 0 : +ong.value; refresh(); } });
+    const nama = h('input', { placeholder: 'Nama perhiasan', value: t.nama, oninput: () => { t.nama = nama.value; refresh(); } });
+    const jenis = h('select', { 'aria-label': 'Jenis perhiasan', onchange: () => { t.jenis = jenis.value; } }, JENIS.map(j => new Option(j, j)));
+    jenis.value = t.jenis;
+    const detail = h('div', { class: 'more', hidden: !t.open },
+      h('label', {}, 'Harga per gram (Rp)', harga), h('label', {}, 'Ongkos (Rp)', ong),
+      h('label', { style: 'flex-direction:row;align-items:center;gap:8px' },
+        h('input', { type: 'checkbox', checked: t.baru, style: 'min-height:0;width:20px;height:20px', onchange: ev => { t.baru = ev.target.checked; nm.hidden = !t.baru; refresh(); } }),
+        'Catat sebagai perhiasan baru di katalog'));
+    const nm = h('div', { class: 'more', hidden: !t.baru }, h('label', {}, 'Nama', nama), h('label', {}, 'Jenis', jenis));
+    const kadar = h('div', { class: 'chips', role: 'group', 'aria-label': 'Kadar emas' }, KADAR.map(k =>
+      h('button', { type: 'button', class: 'chip', 'aria-pressed': String(t.kadar === k), text: k, onclick: () => { t.kadar = k; renderTrades(); refresh(); } })));
+    box.append(h('div', { class: 'trade' },
+      S.trades.length > 1 ? h('div', { class: 'sec-h' }, h('h3', { text: 'Emas ke-' + (idx + 1) }),
+        h('button', { type: 'button', class: 'text', text: 'Hapus', onclick: () => { S.trades.splice(idx, 1); renderTrades(); refresh(); } })) : null,
+      h('div', { class: 'field' }, h('span', { text: 'Kadar' }), kadar),
+      h('div', { class: 'tline' },
+        h('div', { class: 'field' }, h('span', { text: 'Berat' }),
+          h('div', { class: 'stepper' },
+            h('button', { type: 'button', class: 'step', 'aria-label': 'Kurangi berat 0,5 gram', text: '−', onclick: () => step(-0.5) }),
+            berat, h('span', { class: 'sub', text: 'g' }),
+            h('button', { type: 'button', class: 'step', 'aria-label': 'Tambah berat 0,5 gram', text: '+', onclick: () => step(0.5) }))),
+        h('div', { class: 'field', style: 'gap:4px' }, r.rate, r.val)),
+      h('button', { type: 'button', class: 'text', style: 'align-self:flex-start;padding:0;min-height:32px', text: 'Ubah harga / catat sebagai perhiasan baru', onclick: () => { t.open = !t.open; detail.hidden = !t.open; } }),
+      detail, nm));
+    refs.trades.push(r);
+  });
+}
+
+/* ---- hitungan dan tampilan ---- */
+function refresh() {
+  let berat = 0, emas = 0, ong = 0, tradeG = 0, tradeV = 0;
+  const missing = new Set();
+  let ok = true;
+  if (showItems()) {
+    if (!S.cart.length) ok = false;
+    S.cart.forEach(it => {
+      const e = eff(it), r = refs.cart[it.id];
+      if (!e.harga) { missing.add(it.kadar); ok = false; }
+      berat += +it.berat; emas += Math.round(it.berat * e.harga); ong += e.ongkos;
+      if (r) {
+        r.meta.textContent = it.code + ' · ' + it.kadar + ' · ' + fmtGram(it.berat) + ' × ' + rupiah(e.harga);
+        r.ong.textContent = rupiah(e.ongkos);
+        r.sub.textContent = rupiah(sub(it.berat, e.harga, e.ongkos));
+        if (document.activeElement !== r.harga) r.harga.value = S.ov[it.id] && S.ov[it.id].harga != null ? S.ov[it.id].harga : '';
+        if (document.activeElement !== r.ongInput) r.ongInput.value = S.ov[it.id] && S.ov[it.id].ongkos != null ? S.ov[it.id].ongkos : '';
+      }
+    });
+  }
+  if (showTrade()) {
+    if (!S.trades.length) ok = false;
+    S.trades.forEach((t, i) => {
+      const hp = effT(t), r = refs.trades[i];
+      if (!hp) { missing.add(t.kadar); ok = false; }
+      if (!(+t.berat > 0)) ok = false;
+      if (t.baru && !t.nama.trim()) ok = false;
+      tradeG += +t.berat || 0; tradeV += sub(t.berat, hp, t.ongkos);
+      if (r) { r.rate.textContent = 'Harga beli ' + rupiah(hp) + ' per gram'; r.val.textContent = rupiah(sub(t.berat, hp, t.ongkos)); }
+    });
+  }
+  const subtotal = showItems() ? emas + ong : 0, trade = showTrade() ? tradeV : 0, net = subtotal - trade;
+  const asal = S.mode === 'beli_supplier' ? 'supplier' : 'pelanggan';
+  let label = 'Total bayar', total = subtotal;
+  if (S.mode === 'beli_pelanggan' || S.mode === 'beli_supplier') { label = 'Dibayarkan ke ' + asal; total = trade; }
+  if (S.mode === 'tukar_tambah') { label = net >= 0 ? 'Pelanggan membayar' : 'Dibayarkan ke pelanggan'; total = Math.abs(net); }
+  $('s-berat').textContent = fmtGram(berat); $('s-emas').textContent = rupiah(emas); $('s-ong').textContent = rupiah(ong);
+  $('s-trade-l').textContent = 'Emas ' + asal + ' · ' + fmtGram(tradeG);
+  $('s-trade').textContent = (S.mode === 'tukar_tambah' ? '− ' : '') + rupiah(trade);
+  $('t-label').textContent = label; $('t-val').textContent = rupiah(total);
+  const noPrice = Object.keys(PRICES).length === 0;
+  $('harga-info').hidden = !noPrice;
+  if (missing.size) showWarn('Isi harga per gram untuk kadar ' + [...missing].join(', ') + ' (tombol Ubah harga).');
+  else if ($('warn').dataset.price) showWarn('');
+  $('warn').dataset.price = missing.size ? '1' : '';
+  $('simpan').disabled = !ok;
+}
+
+function applyMode() {
+  const m = MODES.find(x => x[0] === S.mode);
+  $('modenote').textContent = m[2];
+  $('sec-items').hidden = !showItems(); $('btn-scan').hidden = !showItems();
+  $('sec-trade').hidden = !showTrade(); $('sum-items').hidden = !showItems(); $('sum-trade').hidden = !showTrade();
+  $('trade-title').textContent = S.mode === 'beli_supplier' ? 'Emas dari supplier' : 'Emas dari pelanggan';
+  $('pihak-label').textContent = S.mode === 'beli_supplier' ? 'Nama supplier (opsional)' : 'Nama pelanggan (opsional)';
+  if (showTrade() && !S.trades.length) S.trades.push(newTrade());
+  const box = $('modes'); box.replaceChildren();
+  MODES.forEach(([k, label]) => box.append(h('button', { type: 'button', class: 'chip', 'aria-pressed': String(S.mode === k), text: label, onclick: () => { S.mode = k; applyMode(); } })));
+  renderTrades(); refresh();
+}
+function renderPays() {
+  const box = $('pays'); box.replaceChildren();
+  PAYS.forEach(p => box.append(h('button', { type: 'button', class: 'chip', 'aria-pressed': String(S.pay === p), text: p, onclick: () => { S.pay = p; renderPays(); } })));
+}
+
+const packCart = () => S.cart.map(it => { const e = eff(it); return { item_id: it.id, kadar: it.kadar, berat: +it.berat, harga_per_gram: Math.round(e.harga), ongkos: Math.round(e.ongkos) }; });
+const packTrade = () => S.trades.map(t => ({ item_id: null, kadar: t.kadar, berat: +t.berat, harga_per_gram: Math.round(effT(t)), ongkos: Math.round(+t.ongkos || 0), nama: t.baru ? t.nama.trim() : null, jenis: t.baru ? t.jenis : null }));
+
+$('simpan').onclick = async () => {
+  showWarn('');
+  const pihak = $('pihak').value, metode = S.pay;
+  let url, body;
+  if (S.mode === 'tukar_tambah') { url = '/api/transaksi/tukar-tambah'; body = { pihak, metode, jual_lines: packCart(), beli_lines: packTrade() }; }
+  else { url = '/api/transaksi'; body = { tipe: S.mode, pihak, metode, lines: S.mode === 'jual' ? packCart() : packTrade() }; }
+  $('simpan').disabled = true;
+  try {
+    const d = await api('POST', url, body);
+    const id = d.id != null ? d.id : d.jual_id;
+    toast(h('span', {}, 'Transaksi tersimpan. ', h('a', { href: '/transaksi/' + id, text: 'Lihat struk #' + id })), false);
+    S.ov = {}; S.trades = showTrade() ? [newTrade()] : []; $('pihak').value = '';
+    S.cart = []; await pull(); renderCart(); loadAvail();
+    renderTrades(); refresh();
+  } catch (e) {
+    toast(document.createTextNode(e.message), true);
+    pull();
+    refresh();
+  }
+};
+
+$('kode').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addByCode(); } };
+$('btn-kode').onclick = addByCode;
+$('btn-trade-add').onclick = () => { S.trades.push(newTrade()); renderTrades(); refresh(); };
+
+(async function init() {
+  try { PRICES = (await api('GET', '/api/harga')).harga; } catch (e) { PRICES = {}; }
+  const t = new URLSearchParams(location.search).get('tipe');
+  if (MODES.some(m => m[0] === t)) S.mode = t;
+  renderPays(); applyMode();
+  await pull(); renderCart(); loadAvail(); refresh();
+  setInterval(pull, 4000);
+  document.addEventListener('visibilitychange', pull);
+  $('kode').focus();
+  UsbScan.attach(c => { $('kode').value = c; addByCode(); });
+})();
+</script>
+{% endblock %}

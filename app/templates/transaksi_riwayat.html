@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Riwayat transaksi{% endblock %}
+{% block content %}
+<h1>Riwayat transaksi</h1>
+<form class="row" method="get">
+  <label>Dari <input type="date" name="start" value="{{ start }}"></label>
+  <label>Sampai <input type="date" name="end" value="{{ end }}"></label>
+  <select name="tipe"><option value="">Semua tipe</option>{% for t in TIPE %}<option value="{{ t }}" {{ 'selected' if t == tipe }}>{{ t|tipe_label }}</option>{% endfor %}</select>
+  <button>Terapkan</button>
+</form>
+<div class="tw"><table>
+  <tr><th>#</th><th>Waktu</th><th>Tipe</th><th>Pihak</th><th class="hide-sm">Bayar</th><th class="hide-sm">Kasir</th><th class="num">Total</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/transaksi/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.tanggal[5:16] }}</td>
+    <td>{{ r.tipe|tipe_label }}{% if r.grup_tukar_tambah %} <span class="muted">(tukar tambah)</span>{% endif %}{% if r.status == 'batal' %} <span class="error">(batal)</span>{% endif %}</td>
+    <td>{{ r.pihak }}</td><td class="hide-sm">{{ r.metode }}</td><td class="hide-sm">{{ r.kasir }}</td><td class="num">{{ r.total|rupiah }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Tidak ada transaksi pada rentang ini.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

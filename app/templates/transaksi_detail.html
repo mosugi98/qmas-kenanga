@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Transaksi #{{ t.id }}{% endblock %}
+{% block content %}
+<h1>Transaksi #{{ t.id }} — {{ t.tipe|tipe_label }}</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<p>{{ t.tanggal[:16] }} · Kasir: {{ t.kasir }}{% if t.pihak %} · {{ t.pihak }}{% endif %} · Bayar: {{ t.metode }}</p>
+{% if t.status == 'batal' %}<p class="error">DIBATALKAN — {{ t.alasan_batal }}</p>{% endif %}
+{% if pair %}<p>Tukar tambah: pasangannya <a href="/transaksi/{{ pair.id }}">#{{ pair.id }} ({{ pair.tipe|tipe_label }})</a></p>{% endif %}
+<div class="tw"><table class="lines">
+  <thead><tr><th>Barang</th><th>Kadar</th><th class="num">Berat</th><th class="num">Harga/g</th><th class="num">Ongkos</th><th class="num">Subtotal</th></tr></thead><tbody>
+  {% for ln in lines %}
+  <tr>
+    <td>{% if ln.code %}{{ ln.code }} · {{ ln.nama }}{% else %}Emas curah{% endif %}
+      {% if ln.created_by_tx == t.id %}<br><span class="noprint"><a href="/katalog/{{ ln.iid }}/edit">Tambah foto</a> · <a href="/label/{{ ln.iid }}">Cetak label</a></span>{% endif %}</td>
+    <td data-l="Kadar">{{ ln.kadar }}</td><td class="num" data-l="Berat">{{ ln.berat|gram }}</td><td class="num" data-l="Harga/g">{{ ln.harga_per_gram|rupiah }}</td>
+    <td class="num" data-l="Ongkos">{{ ln.ongkos|rupiah }}</td><td class="num" data-l="Subtotal">{{ ln.subtotal|rupiah }}</td>
+  </tr>
+  {% endfor %}
+  <tr><td colspan="5"><strong>Total</strong></td><td class="num"><strong>{{ t.total|rupiah }}</strong></td></tr></tbody>
+</table></div>
+{% if t.status == 'aktif' and user.role == 'pemilik' %}
+<form method="post" action="/transaksi/{{ t.id }}/batal" class="card noprint">
+  <label>Alasan pembatalan<br><input name="alasan" required size="40"></label>
+  <button class="ghost">Batalkan transaksi</button>
+</form>
+{% endif %}
+<p class="noprint"><button onclick="window.print()">Cetak struk</button> <a href="/transaksi">Kembali ke riwayat</a></p>
+{% endblock %}

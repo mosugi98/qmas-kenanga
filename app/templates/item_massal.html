@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Buat banyak perhiasan{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="ph"><div><p class="sub">Kode unik dibuat otomatis, lalu label langsung siap dicetak</p><h1>Buat banyak sekaligus</h1></div></div>
+
+  <form method="post" action="/katalog/massal" class="card" id="fm">
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <p class="muted">Isi jenis, kadar, berat per pcs, dan jumlah pcs. Satu baris = satu kelompok perhiasan yang sama. Maksimal {{ MAKS_PER_BARIS }} pcs per baris dan {{ MAKS_TOTAL }} pcs sekali buat. Foto dan harga tidak wajib.</p>
+
+    <p><label>Awalan kode (opsional, contoh KNG)<br>
+      <input name="awalan" id="awalan" value="{{ awalan }}" maxlength="6" pattern="[A-Za-z0-9]*" autocomplete="off" style="width:140px;text-transform:uppercase"></label></p>
+
+    <div id="rows" class="massal-rows">
+      {% for r in rows %}
+      <div class="mrow">
+        <label>Jenis<select name="jenis">{% for j in JENIS %}<option {{ 'selected' if j == r.jenis }}>{{ j }}</option>{% endfor %}</select></label>
+        <label>Kadar<input name="kadar" value="{{ r.kadar }}" placeholder="22K" required style="width:80px"></label>
+        <label>Berat/pcs (g)<input name="berat" type="number" step="0.001" min="0.001" inputmode="decimal" value="{{ r.berat }}" required></label>
+        <label>Jumlah pcs<input name="pcs" type="number" min="1" max="{{ MAKS_PER_BARIS }}" inputmode="numeric" value="{{ r.pcs }}" required></label>
+        <button type="button" class="ghost hapus" aria-label="Hapus baris">✕</button>
+        <span class="pv muted"></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p><button type="button" class="ghost" id="tambah">+ Tambah baris</button></p>
+
+    <p class="toast" id="ringkas" hidden></p>
+    <p><button id="kirim">Buat kode &amp; cetak label</button></p>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var rows = document.getElementById('rows'), ring = document.getElementById('ringkas'), tm;
+  function data() {
+    var out = [];
+    rows.querySelectorAll('.mrow').forEach(function (r) {
+      var q = function (n) { return r.querySelector('[name=' + n + ']').value; };
+      out.push({ el: r, jenis: q('jenis'), kadar: q('kadar'), berat: parseFloat(q('berat')), pcs: parseInt(q('pcs'), 10) });
+    });
+    return out;
+  }
+  function pratinjau() {
+    var d = data().filter(function (x) { return x.berat > 0 && x.pcs > 0; });
+    data().forEach(function (x) { x.el.querySelector('.pv').textContent = ''; });
+    if (!d.length) { ring.hidden = true; return; }
+    fetch('/api/items/massal-pratinjau', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ awalan: document.getElementById('awalan').value, baris: d.map(function (x) { return { jenis: x.jenis, kadar: x.kadar, berat: x.berat, pcs: x.pcs }; }) }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        ring.hidden = false;
+        if (!res.ok) { ring.className = 'toast err'; ring.textContent = res.j.detail || 'Isian belum benar'; return; }
+        ring.className = 'toast'; ring.textContent = res.j.total + ' label akan dibuat.';
+        res.j.baris.forEach(function (b, i) { d[i].el.querySelector('.pv').textContent = b.awal + (b.pcs > 1 ? '  sampai  ' + b.akhir : ''); });
+      }).catch(function () { ring.hidden = true; });
+  }
+  function jadwal() { clearTimeout(tm); tm = setTimeout(pratinjau, 300); }
+  rows.addEventListener('input', jadwal); rows.addEventListener('change', jadwal);
+  document.getElementById('awalan').addEventListener('input', jadwal);
+  document.getElementById('tambah').onclick = function () {
+    var c = rows.querySelector('.mrow').cloneNode(true);
+    c.querySelector('[name=berat]').value = ''; c.querySelector('[name=pcs]').value = ''; c.querySelector('.pv').textContent = '';
+    rows.appendChild(c); c.querySelector('[name=berat]').focus();
+  };
+  rows.addEventListener('click', function (e) {
+    if (e.target.classList.contains('hapus') && rows.querySelectorAll('.mrow').length > 1) { e.target.closest('.mrow').remove(); jadwal(); }
+  });
+  document.getElementById('fm').addEventListener('submit', function () { document.getElementById('kirim').disabled = true; });
+  jadwal();
+})();
+</script>
+{% endblock %}

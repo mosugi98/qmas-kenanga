@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_ui.html" import ico, jico, I %}
+{% block title %}Scan{% endblock %}
+{% block content %}
+<div class="scanwrap">
+  <header>
+    <span class="sub">Terhubung ke kasir di toko</span>
+    <h1>Scan perhiasan</h1>
+  </header>
+
+  <button type="button" class="vf" id="cam" aria-label="Buka kamera untuk scan kode">
+    <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+    <div id="reader" hidden></div>
+    <svg width="160" height="64" viewBox="0 0 160 64" aria-hidden="true"><rect x="0" width="4" height="64"/><rect x="10" width="2" height="64"/><rect x="18" width="6" height="64"/><rect x="30" width="2" height="64"/><rect x="38" width="4" height="64"/><rect x="48" width="2" height="64"/><rect x="56" width="6" height="64"/><rect x="68" width="2" height="64"/><rect x="76" width="4" height="64"/><rect x="86" width="6" height="64"/><rect x="98" width="2" height="64"/><rect x="106" width="4" height="64"/><rect x="116" width="2" height="64"/><rect x="124" width="6" height="64"/><rect x="136" width="2" height="64"/><rect x="144" width="4" height="64"/><rect x="154" width="6" height="64"/></svg>
+    <span class="hint" id="hint">Ketuk, lalu arahkan kamera ke kode pada label</span>
+  </button>
+
+  <form id="f" class="manual">
+    <input id="kode" autocomplete="off" autocapitalize="characters" placeholder="Atau ketik / scan kode, lalu Enter" aria-label="Kode perhiasan">
+    <button class="ghost">Cari</button>
+  </form>
+
+  <p id="err" class="toast err" role="alert" hidden></p>
+  <p id="ok" class="toast" role="status" hidden></p>
+
+  <section class="found" id="hasil" aria-label="Hasil scan" hidden>
+    <div class="itile"><img id="r-foto" alt="" hidden><span id="r-ico"></span></div>
+    <div class="info">
+      <small>Kode terbaca</small>
+      <b id="r-name"></b>
+      <small id="r-detail"></small>
+    </div>
+    <span class="rp" id="r-rp"></span>
+  </section>
+
+  <button type="button" class="go primary" id="tambah" hidden>Tambah ke kasir</button>
+  <a class="go-link" id="ke-kasir" href="/transaksi/baru" hidden>Buka kasir</a>
+  <p class="muted small" id="https-note" hidden>Kamera butuh HTTPS. Buka <a href="/sertifikat">panduan sertifikat</a> atau pakai scanner USB.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/html5-qrcode.min.js"></script>
+<script src="/static/lookup.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let scanner = null, current = null;
+const IKON = {{ JENIS_PATHS | tojson }};
+
+function say(id, msg) {
+  ['err', 'ok'].forEach(k => { $(k).hidden = true; });
+  if (id) { $(id).textContent = msg; $(id).hidden = false; }
+}
+function clearResult() { current = null; $('hasil').hidden = true; $('tambah').hidden = true; }
+
+async function show(code) {
+  say(null); clearResult();
+  try {
+    const it = await lookupCode(code);
+    current = it;
+    $('r-name').textContent = it.name;
+    $('r-detail').textContent = it.code + ' · ' + it.kadar + ' · ' + fmtGram(it.berat);
+    $('r-rp').textContent = it.est != null ? rupiah(it.est) : 'Harga belum diisi';
+    const f = $('r-foto');
+    if (it.foto_url) { f.src = it.foto_url; f.hidden = false; $('r-ico').innerHTML = ''; }
+    else {
+      f.hidden = true;
+      $('r-ico').innerHTML = '<svg width="30" height="30" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (IKON[it.jenis] || IKON['Lainnya']) + '"/></svg>';
+    }
+    $('hasil').hidden = false;
+    if (it.status === 'tersedia') { $('tambah').hidden = false; }
+    else { say('err', it.code + ' berstatus ' + it.status + ', tidak bisa dijual.'); }
+  } catch (e) { say('err', e.message); }
+  $('kode').value = '';
+}
+
+$('f').onsubmit = ev => { ev.preventDefault(); const v = $('kode').value.trim(); if (v) show(v); };
+
+$('tambah').onclick = async () => {
+  if (!current) return;
+  const btn = $('tambah'); btn.disabled = true;
+  try {
+    const r = await fetch('/api/keranjang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_id: current.id }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Gagal menambah ke kasir'); }
+    const nama = current.name;
+    clearResult();
+    say('ok', nama + ' ditambahkan ke kasir. Scan perhiasan berikutnya.');
+    $('ke-kasir').hidden = false;
+  } catch (e) { say('err', e.message); }
+  btn.disabled = false;
+};
+
+async function stopCam() {
+  if (!scanner) return;
+  try { await scanner.stop(); scanner.clear(); } catch (e) { /* sudah berhenti */ }
+  scanner = null; $('reader').hidden = true; $('hint').hidden = false;
+  document.querySelector('.vf svg').style.display = '';
+}
+
+$('cam').onclick = async () => {
+  if (scanner) { await stopCam(); return; }
+  if (!window.isSecureContext) { $('https-note').hidden = false; say('err', 'Kamera butuh HTTPS. Pakai scanner USB atau ketik kode.'); return; }
+  scanner = new Html5Qrcode('reader');
+  $('reader').hidden = false; $('hint').hidden = true;
+  document.querySelector('.vf svg').style.display = 'none';
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: undefined, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128] },
+      async text => { await stopCam(); show(text); },
+      () => {}
+    );
+  } catch (e) { say('err', 'Kamera tidak bisa dibuka: ' + e); await stopCam(); }
+};
+</script>
+{% endblock %}

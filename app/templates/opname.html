@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Opname stok{% endblock %}
+{% block content %}
+<div class="page">
+<div class="ph"><div><h1>Opname stok</h1><span class="sub">Cocokkan stok awal, barang terjual, dan barang tersisa dengan scanner</span></div></div>
+
+{% if jalan %}
+<div class="card">
+  <p><b>{{ jalan.nama }}</b> sedang berjalan sejak {{ jalan.mulai[5:16] }}.</p>
+  <a class="btn big" href="/opname/{{ jalan.id }}">Lanjut scan</a>
+</div>
+{% else %}
+<form class="card" method="post" action="/opname/mulai">
+  <p class="muted">Saat dimulai, semua perhiasan berstatus tersedia dicatat sebagai <b>stok awal</b>. Scan setiap barang yang ada di etalase/brankas. Barang yang tidak terscan dan tidak tercatat terjual akan dilaporkan <b>HILANG</b>.</p>
+  <label class="field"><span>Nama opname</span><input name="nama" maxlength="80" placeholder="Opname akhir bulan"></label>
+  <button class="big">Mulai opname</button>
+</form>
+{% endif %}
+
+<h2>Riwayat opname</h2>
+<div class="tw"><table>
+  <tr><th>Nama</th><th>Mulai</th><th class="num">Stok awal</th><th>Status</th><th></th></tr>
+  {% for o in daftar %}
+  <tr>
+    <td>{{ o.nama }}</td><td>{{ o.mulai[5:16] }}</td><td class="num">{{ o.awal_pcs }}</td>
+    <td>{{ 'Berjalan' if o.status == 'berjalan' else 'Selesai' }}</td>
+    <td><a href="/opname/{{ o.id }}{{ '/laporan' if o.status == 'selesai' }}">Buka</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Belum ada opname.</td></tr>
+  {% endfor %}
+</table></div>
+</div>
+{% endblock %}
