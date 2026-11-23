@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FILES = ["run.py", "requirements.txt", "README.md", "PANDUAN.md"]
+FILES = ["run.py", "requirements.txt", "README.md", "PANDUAN.md", "buka-firewall.bat"]
 
 
 def buat(out: Path, versi: str) -> Path:

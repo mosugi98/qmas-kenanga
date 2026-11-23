@@ -44,6 +44,12 @@
 - **Scan di HP**: buka menu **Scan**, ketuk kotak kamera, arahkan ke label, lalu **Tambah ke kasir**. Perhiasan muncul sendiri di Kasir PC dalam beberapa detik.
 - **Beranda**: ringkasan penjualan, pembelian, gramasi, stok, dan harga hari ini (nominal hanya untuk pemilik).
 
+## HP tidak bisa membuka alamat
+1. Pastikan HP dan komputer di WiFi yang sama (bukan data seluler atau WiFi tamu) dan alamatnya `https://IP:8443` (pakai `https`).
+2. Klik dua kali **buka-firewall.bat** (atau `jalankan.bat` pada versi terbaru); saat Windows meminta izin Administrator untuk firewall, pilih **Yes** (sekali saja). Manual: Command Prompt sebagai Administrator, lalu `netsh advfirewall firewall add rule name=Q-mas dir=in action=allow protocol=TCP localport=8443 profile=any`.
+3. Bila IP yang tampil tidak cocok, ketik `ipconfig` dan pakai IPv4 adapter WiFi/LAN.
+4. Peringatan sertifikat di browser HP normal: pilih Lanjutkan / Advanced > Proceed.
+
 ## Lupa kata sandi
 - Di halaman Masuk klik **Lupa kata sandi?**. Kirim **Kode Perangkat** dan **Kode Tantangan** yang tampil ke penyedia aplikasi. Tempel token balasannya, isi nama pengguna dan kata sandi baru. Reset hanya bisa dilakukan penyedia aplikasi.
 

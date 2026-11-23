@@ -117,6 +117,13 @@ def test_reset_password_bat_hanya_di_tools():
     assert "reset-interaktif" in (ROOT / "tools" / "reset-password.bat").read_text()
 
 
+def test_jalankan_membuka_firewall():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import buat_paket
+    for isi in (buat_paket.JALANKAN, (ROOT / "jalankan.bat").read_text(encoding="utf-8")):
+        assert "advfirewall firewall add rule name=Q-mas" in isi and "localport=8443" in isi and "profile=any" in isi
+
+
 def test_zip_update_tanpa_data_dan_kunci(tmp_path):
     import zipfile
     sys.path.insert(0, str(ROOT / "tools"))
